@@ -4,10 +4,13 @@ abs_path = os.path.abspath('.')
 base_dir = os.path.dirname(abs_path)
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
 
+import torch
+# Details: https://huggingface.co/docs/diffusers/optimization/fp16#enable-cudnn-autotuner
+torch.backends.cudnn.benchmark = True
+torch.backends.cuda.matmul.allow_tf32 = True
 from transformers import pipeline, AutoTokenizer, AutoFeatureExtractor, AutoConfig, WhisperProcessor, WhisperForConditionalGeneration
 from typing import Union, BinaryIO
-import torch
-
+from optimum.bettertransformer import BetterTransformer
 
 task = "transcribe"  # transcribe or translate
 
@@ -16,19 +19,18 @@ task = "transcribe"  # transcribe or translate
 ## v2: trained on more epochs with regularization
 # model_name = 'openai/whisper-large-v2' 
 #bangla
-# model_name = 'anuragshas/whisper-large-v2-bn' 
-model_name = 'anuragshas/whisper-small-bn' 
+model_name = 'anuragshas/whisper-large-v2-bn' 
+# model_name = 'anuragshas/whisper-small-bn' 
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
 
-
-# device = 0 if torch.cuda.is_available() else -1
-device = -1 #Exclusively CPU
+device = 0 if torch.cuda.is_available() else -1
+# device = -1 #Exclusively CPU
 
 print(f"Using device: {'GPU' if device==0 else 'CPU'}")
 
-if device != 0:
+if device !=0:
     print("[Warning!] Using CPU could hamper performance")
 
 print("Loading Tokenizer for ASR Speech-to-Text Model...\n" + "*" * 100)
@@ -45,15 +47,26 @@ print("Loading Processor for ASR Speech-to-Text Model...\n" + "*" * 100)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
 print("Loading WHISPER ASR Speech-to-Text Model...\n" + "*" * 100)
-model = WhisperForConditionalGeneration.from_pretrained(model_name)
+# model = WhisperForConditionalGeneration.from_pretrained(model_name)
+
+## BetterTransformer
+model = WhisperForConditionalGeneration.from_pretrained(model_name).to(device)
+model = BetterTransformer.transform(model)
+## bitsandbytes (only Linux)
+## from_pretrained doc: https://huggingface.co/docs/transformers/v4.25.1/en/main_classes/model#transformers.PreTrainedModel.from_pretrained
+# model = WhisperForConditionalGeneration.from_pretrained(model_name, device_map="auto", load_in_8bit=True)
+## For PyTorch 2.0 (Only Linux)
+# model = WhisperForConditionalGeneration.from_pretrained(model_name).to(device="cuda:0")
+# model = torch.compile(model) 
+
 
 asr = pipeline(
     task="automatic-speech-recognition",
     model=model,
     tokenizer=tokenizer,
     feature_extractor=feature_extractor,
-    processor=processor, #no effect see: https://github.com/huggingface/transformers/blob/v4.25.1/src/transformers/pipelines/automatic_speech_recognition.py
-    config=config, #no effect see: https://github.com/huggingface/transformers/blob/v4.25.1/src/transformers/pipelines/automatic_speech_recognition.py
+    # processor=processor, #no effect see: https://github.com/huggingface/transformers/blob/main/src/transformers/pipelines/automatic_speech_recognition.py
+    # config=config, #no effect see: https://github.com/huggingface/transformers/blob/main/src/transformers/pipelines/automatic_speech_recognition.py
     device=device,  # for gpu 1 for cpu -1
     ## chunk files longer than 30s into shorted samples
     chunk_length_s=30, 

@@ -76,6 +76,8 @@ asr = pipeline(
     ## The stride_length on one side is 1/6th of the chunk_length_s if stride_length no provided
     stride_length_s=(5, 5),
     ignore_warning=True,
+    ## force whisper to generate timestamps so that the chunking and stitching can be accurate
+    return_timestamps=True, 
     # decoder_kwargs={"max_new_tokens": 448},  ##default is 448
 )
 

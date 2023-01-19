@@ -14,13 +14,19 @@ from optimum.bettertransformer import BetterTransformer
 
 task = "transcribe"  # transcribe or translate
 
-# model_name = 'openai/whisper-small'
-# model_name = 'openai/whisper-large' 
+# model_name = 'openai/whisper-tiny.en'
+# model_name = 'openai/whisper-base.en'
+# model_name = 'openai/whisper-small.en'
+# model_name = 'openai/whisper-medium' 
 ## v2: trained on more epochs with regularization
 # model_name = 'openai/whisper-large-v2' 
-#bangla
-model_name = 'anuragshas/whisper-large-v2-bn' 
-# model_name = 'anuragshas/whisper-small-bn' 
+## bangla
+# model_name = 'Rakib/whisper-tiny-bn' 
+# model_name = 'Rakib/whisper-tiny-bn-bf16' 
+# model_name = 'Rakib/whisper-tiny-bn-no-optim' 
+model_name = 'anuragshas/whisper-small-bn' 
+# model_name = 'anuragshas/whisper-large-v2-bn' 
+
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
@@ -49,15 +55,20 @@ processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=toke
 print("Loading WHISPER ASR Speech-to-Text Model...\n" + "*" * 100)
 # model = WhisperForConditionalGeneration.from_pretrained(model_name)
 
-## BetterTransformer
+## BetterTransformer (No Need if PyTorch 2.0 works!!) 
+## (currently 2secs faster inference than PyTorch 2.0 )
 model = WhisperForConditionalGeneration.from_pretrained(model_name).to(device)
 model = BetterTransformer.transform(model)
-## bitsandbytes (only Linux)
+
+## bitsandbytes (only Linux & GPU) (requires conda env with conda-based pytorch!!!)
+## currently only reduces size. slower inference than native models!!!
 ## from_pretrained doc: https://huggingface.co/docs/transformers/v4.25.1/en/main_classes/model#transformers.PreTrainedModel.from_pretrained
 # model = WhisperForConditionalGeneration.from_pretrained(model_name, device_map="auto", load_in_8bit=True)
+
 ## For PyTorch 2.0 (Only Linux)
 # model = WhisperForConditionalGeneration.from_pretrained(model_name).to(device="cuda:0")
-# model = torch.compile(model) 
+##mode options are "default", "reduce-overhead" and "max-autotune". See: https://pytorch.org/get-started/pytorch-2.0/#modes
+# model = torch.compile(model, mode="default") 
 
 
 asr = pipeline(
@@ -77,7 +88,7 @@ asr = pipeline(
     stride_length_s=(5, 5),
     ignore_warning=True,
     ## force whisper to generate timestamps so that the chunking and stitching can be accurate
-    return_timestamps=True, 
+    # return_timestamps=True, 
     # decoder_kwargs={"max_new_tokens": 448},  ##default is 448
 )
 

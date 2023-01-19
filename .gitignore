@@ -1,5 +1,6 @@
 /env/
 /models_cache/
+*.wav
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,7 +1,7 @@
 import os
 
 abs_path = os.path.abspath('.')
-base_dir = os.path.dirname(abs_path)
+base_dir = os.path.dirname(os.path.dirname(abs_path))
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
 
 import torch

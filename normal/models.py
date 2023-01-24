@@ -20,19 +20,17 @@ task = "transcribe"  # transcribe or translate
 # model_name = 'openai/whisper-medium' 
 ## v2: trained on more epochs with regularization
 # model_name = 'openai/whisper-large-v2' 
+
 ## bangla
 # model_name = 'Rakib/whisper-tiny-bn' 
-# model_name = 'Rakib/whisper-tiny-bn-bf16' 
-# model_name = 'Rakib/whisper-tiny-bn-no-optim' 
 model_name = 'anuragshas/whisper-small-bn' 
 # model_name = 'anuragshas/whisper-large-v2-bn' 
-
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
 
-device = 0 if torch.cuda.is_available() else -1
-# device = -1 #Exclusively CPU
+# device = 0 if torch.cuda.is_available() else -1
+device = -1 #Exclusively CPU
 
 print(f"Using device: {'GPU' if device==0 else 'CPU'}")
 

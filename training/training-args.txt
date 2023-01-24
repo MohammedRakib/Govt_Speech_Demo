@@ -1,0 +1,239 @@
+echo 'python run_speech_recognition_seq2seq_streaming.py \
+--model_name_or_path="openai/whisper-small" \
+--dataset_name="mozilla-foundation/common_voice_11_0" \
+--dataset_config_name="bn" \
+--language="bengali" \
+--train_split_name="train+validation" \
+--eval_split_name="test" \
+--model_index_name="Whisper Small Bengali" \
+--output_dir="./" \
+--overwrite_output_dir \
+--max_steps="60000" \
+--per_device_train_batch_size="4" \
+--per_device_eval_batch_size="2" \
+--gradient_accumulation_steps="8" \
+--gradient_checkpointing="False" \
+--evaluation_strategy="steps" \
+--eval_steps="1000" \
+--save_strategy="steps" \
+--save_steps="1000" \
+--save_total_limit="5" \
+--learning_rate="1e-5" \
+--warmup_steps="5000" \
+--logging_steps="25" \
+--weight_decay="0.01" \
+--load_best_model_at_end="True" \
+--metric_for_best_model="wer" \
+--greater_is_better="False" \
+--bf16="True" \
+--tf32="True" \
+--streaming="False" \
+--generation_max_length="225" \
+--length_column_name="input_length" \
+--max_duration_in_seconds="30" \
+--text_column_name="sentence" \
+--freeze_feature_encoder="False" \
+--report_to="tensorboard" \
+--do_train \
+--do_eval \
+--predict_with_generate \
+--do_normalize_eval \
+--use_auth_token \
+--push_to_hub' >> run.sh
+
+#max_steps MAX_STEPS - If > 0: set total number of training steps to perform. Override num_train_epochs. (default: -1)
+
+	--max_steps="20000" \
+
+
+#output_dir OUTPUT_DIR - The output directory where the model predictions and checkpoints will be written. (default: None)
+
+	--output_dir="./" \
+
+
+#overwrite_output_dir [OVERWRITE_OUTPUT_DIR] - Overwrite the content of the output directory. Use this to continue training if output_dir points to a
+#checkpoint directory. (default: False)
+
+	--overwrite_output_dir \
+
+
+#weight_decay (float, optional, defaults to 0) — The weight decay to apply (if not zero) to all layers except all bias and LayerNorm weights in AdamW 
+optimizer. weight decay prevents overfitting. visit: https://towardsdatascience.com/this-thing-called-weight-decay-a7cd4bcfccab
+# 0.1-just right, 0.01-takes more epochs to fit, 10-never quite fits
+
+	--weight_decay="0.01" \
+
+
+#bf16 (bool, optional, defaults to False) — Whether to use bf16 16-bit (mixed) precision training instead of 32-bit training. Requires Ampere or higher 
+NVIDIA architecture or using CPU (no_cuda). This is an experimental API and it may change.
+
+	--bf16="True" \
+	
+
+#fp16 (bool, optional, defaults to False) — Whether to use fp16 16-bit (mixed) precision training instead of 32-bit training.
+
+	--fp16="True" \
+	
+
+#tf32 (bool, optional) — Whether to enable the TF32 mode, available in Ampere and newer GPU architectures. The default value depends on PyTorch’s 
+#version default of torch.backends.cuda.matmul.allow_tf32. This is an experimental API and it may change.
+#details: https://huggingface.co/docs/transformers/perf_train_gpu_one
+
+	--tf32="True" \
+	
+
+#gradient_checkpointing (bool, optional, defaults to False) — If True, use gradient checkpointing to save memory at the expense of slower backward
+#pass.
+
+	--gradient_checkpointing="False" \
+	
+
+
+#deepspeed (str or dict, optional) — Use Deepspeed. This is an experimental feature and its API may evolve in the future. The value is either the 
+#location of DeepSpeed json config file (e.g., ds_config.json) or an already loaded json file as a dict”
+
+	--deepspeed="ds_config.json" \
+	
+	
+#auto_find_batch_size (bool, optional, defaults to False) — Whether to find a batch size that will fit into memory automatically through exponential
+#decay, avoiding CUDA Out-of-Memory errors. Requires accelerate to be installed (pip install accelerate)
+
+	--auto_find_batch_size="True" \
+
+
+#lr_scheduler_type (str or SchedulerType, optional, defaults to "linear") — The scheduler type to use.
+#Scheduler types: "linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"
+
+	--lr_scheduler_type="linear" \
+	
+
+#torch_compile (bool, optional, defaults to False) — Whether or not to compile the model using PyTorch 2.0 torch.compile (requires a nighlty install of
+#PyTorch). If set, the backend will default to "inductor" (can be customized with torch_compile_backend) and the mode will default to "default" (can be
+#customized with torch_compile_mode).
+
+	--torch_compile="True" \
+
+
+#torch_compile_backend (str, optional) — The backend to use in torch.compile. If set to any value, torch_compile will be set to True.
+#Possible choices are "eager", "aot_eager", "inductor", "nvfuser", "aot_nvfuser", "aot_cudagraphs", "ofi", "fx2trt", "onnxrt" and "ipex".
+
+	--torch_compile_backend="inductor" \
+
+#torch_compile_mode (str, optional) — The mode to use in torch.compile. If set to any value, torch_compile will be set to True.
+#Possible choices are "default", "reduce-overhead" and "max-autotune". See: https://pytorch.org/get-started/pytorch-2.0/#modes
+
+	--torch_compile_mode="default" \
+
+	
+#push_to_hub (bool, optional, defaults to False) — Whether or not to push the model to the Hub every time the model is saved. If this is activated, 
+#output_dir will begin a git directory synced with the repo (determined by hub_model_id) and the content will be pushed each time a save is triggered
+#(depending on your save_strategy). Calling save_model() will also trigger a push. If output_dir exists, it needs to be a local clone of the repository
+#to which the Trainer will be pushed.
+	
+	--push_to_hub="False" \
+	
+
+#resume_from_checkpoint (str, optional) — The path to a folder with a valid checkpoint for your model. This argument is not directly used by Trainer, 
+#it’s intended to be used by your training/evaluation scripts instead. See the example scripts for more details.
+
+	--resume_from_checkpoint="directory" \
+	
+	
+#load_best_model_at_end (bool, optional, defaults to False) — Whether or not to load the best model found during training at the end of training.
+#When set to True, the parameters save_strategy needs to be the same as evaluation_strategy, and in the case it is “steps”, save_steps must be a 
+#round multiple of eval_steps.
+
+	--load_best_model_at_end="True" \
+	
+
+#metric_for_best_model (str, optional) — Use in conjunction with load_best_model_at_end to specify the metric to use to compare two different models. 
+#Must be the name of a metric returned by the evaluation with or without the prefix "eval_". Will default to "loss" if unspecified and 
+#load_best_model_at_end=True (to use the evaluation loss). If you set this value, greater_is_better will default to True. Don’t forget to set it to 
+#False if your metric is better when lower.
+
+	--metric_for_best_model="wer" \
+	
+
+#greater_is_better (bool, optional) — Use in conjunction with load_best_model_at_end and metric_for_best_model to specify if better models should have
+#a greater metric or not. Will default to: True if metric_for_best_model is set to a value that isn’t "loss" or "eval_loss". False if 
+#metric_for_best_model is not set, or set to "loss" or "eval_loss".
+
+	--greater_is_better="False"
+
+
+#eval_steps (int, optional) — Number of update steps between two evaluations if evaluation_strategy="steps". Will default to the same value as 
+#logging_steps if not set.
+
+	--eval_steps="1000" \
+	
+
+#dataloader_num_workers (int, optional, defaults to 0) — Number of subprocesses to use for data loading (PyTorch only). 0 means that the data will be 
+#loaded in the main process.
+
+	--dataloader_num_workers="1" \
+	
+
+#disable_tqdm (bool, optional) — Whether or not to disable the tqdm progress bars and table of metrics produced by ~notebook.NotebookTrainingTracker 
+# in Jupyter Notebooks. Will default to True if the logging level is set to warn or lower (default), False otherwise.
+
+	--disable_tqdm="False" \
+
+#optim (str or training_args.OptimizerNames, optional, defaults to "adamw_hf") — The optimizer to use: adamw_hf, adamw_torch, adamw_apex_fused, 
+#adamw_anyprecision or adafactor.
+
+	--optim="adamw_hf" \
+
+
+See this article for more intuition:
+
+		https://huggingface.co/docs/transformers/perf_train_gpu_one
+		
+
+#cache_dir CACHE_DIR. Where to store the pretrained models downloaded from huggingface.co (default: None)
+
+	--cache_dir="~/asr_training/models_cache"
+
+
+#max_train_samples MAX_TRAIN_SAMPLES. For debugging purposes or quicker training, truncate the number of training examples to this value if set.
+#(default: None)
+
+	--max_train_samples="1000"
+	
+	
+#max_eval_samples MAX_EVAL_SAMPLES. For debugging purposes or quicker training, truncate the number of evaluation examples to this value if set.
+#(default: None)
+
+	--max_eval_samples="100"
+	
+
+#train_split_name TRAIN_SPLIT_NAME. The name of the training data set split to use (via the datasets library). Defaults to 'train' (default: train)
+
+	--train_split_name="train" \
+	
+	
+#eval_split_name EVAL_SPLIT_NAME. The name of the training data set split to use (via the datasets library). Defaults to 'train' (default: test)
+
+	--eval_split_name="valid" \
+	
+
+#do_lower_case [DO_LOWER_CASE]. Whether the target text should be lower cased. (default: False)
+
+	do_lower_case="False" \
+
+#do_remove_punctuation [DO_REMOVE_PUNCTUATION]. Whether the target text should be striped of punctuation. (default: False)
+
+	--do_remove_punctuation="False" \
+	
+#do_normalize_eval [DO_NORMALIZE_EVAL]. Whether to normalise the references and predictions in the eval WER calculation. (default: True)
+
+	--do_normalize_eval="True" \
+	
+#no_do_normalize_eval. Whether to normalise the references and predictions in the eval WER calculation. (default: False)
+
+	--no_do_normalize_eval="False" \
+
+
+
+
+
+

@@ -1,0 +1,43 @@
+python run_speech_recognition_seq2seq_streaming.py \
+--model_name_or_path="openai/whisper-small" \
+--dataset_name="mozilla-foundation/common_voice_11_0" \
+--dataset_config_name="bn" \
+--language="bengali" \
+--train_split_name="train+validation" \
+--eval_split_name="test" \
+--model_index_name="Whisper Small Bengali" \
+--output_dir="./" \
+--overwrite_output_dir \
+--resume_from_checkpoint="checkpoint-4000" \
+--max_steps="60000" \
+--per_device_train_batch_size="4" \
+--per_device_eval_batch_size="32" \
+--gradient_accumulation_steps="8" \
+--gradient_checkpointing="False" \
+--evaluation_strategy="steps" \
+--eval_steps="1000" \
+--save_strategy="steps" \
+--save_steps="1000" \
+--save_total_limit="5" \
+--learning_rate="1e-5" \
+--warmup_steps="5000" \
+--logging_steps="25" \
+--weight_decay="0.01" \
+--load_best_model_at_end="True" \
+--metric_for_best_model="wer" \
+--greater_is_better="False" \
+--bf16="True" \
+--tf32="True" \
+--streaming="False" \
+--generation_max_length="225" \
+--length_column_name="input_length" \
+--max_duration_in_seconds="30" \
+--text_column_name="sentence" \
+--freeze_feature_encoder="False" \
+--report_to="tensorboard" \
+--do_train \
+--do_eval \
+--predict_with_generate \
+--do_normalize_eval \
+--use_auth_token \
+--push_to_hub

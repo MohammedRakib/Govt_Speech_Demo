@@ -1,11 +1,21 @@
 import argparse
+import os
+
+abs_path = os.path.abspath('.')
+base_dir = os.path.dirname(os.path.dirname(abs_path))
+
+os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
+os.environ['TRANSFORMERS_OFFLINE'] = '0'
+os.environ['HF_DATASETS_CACHE'] = os.path.join(base_dir, 'datasets_cache')
+os.environ['HF_DATASETS_OFFLINE'] = '0'
 
 from transformers import pipeline
 from transformers.models.whisper.english_normalizer import BasicTextNormalizer
 from datasets import load_dataset, Audio
+from bnunicodenormalizer import Normalizer
 import evaluate
 
-wer_metric = evaluate.load("wer")
+wer_metric = evaluate.load("wer", cache_dir=os.path.join(base_dir, "metrics_cache"))
 
 
 def is_target_text_in_range(ref):
@@ -28,12 +38,13 @@ def get_text(sample):
         return sample["transcription"]
     else:
         raise ValueError(
-            f"Expected transcript column of either 'text', 'sentence', 'normalized_text' or 'transcript'. Got sample of "
+            "Expected transcript column of either 'text', 'sentence', 'normalized_text' or 'transcript'. Got sample of "
             ".join{sample.keys()}. Ensure a text column name is present in the dataset."
         )
 
 
 whisper_norm = BasicTextNormalizer()
+bangla_normalizer = Normalizer(allow_english=True)
 
 
 def normalise(batch):
@@ -41,8 +52,15 @@ def normalise(batch):
     return batch
 
 
+def bn_unicode_normalise(batch):
+    _words = [bangla_normalizer(word)['normalized'] for word in get_text(batch).split()]
+    normalized_text = " ".join([word for word in _words if word is not None])
+    batch["norm_text"] = whisper_norm(normalized_text)
+    return batch
+
+
 def data(dataset):
-    for i, item in enumerate(dataset):
+    for item in dataset:
         yield {**item["audio"], "reference": item["norm_text"]}
 
 
@@ -64,13 +82,20 @@ def main(args):
         split=args.split,
         streaming=args.streaming,
         use_auth_token=True,
+        cache_dir=os.path.join(base_dir, 'datasets_cache'),
     )
 
     # Only uncomment for debugging
     dataset = dataset.take(args.max_eval_samples)
 
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
-    dataset = dataset.map(normalise)
+    
+    if args.do_bangla_unicode_normalize:
+        print("\n\n Doing Unicode Normalization! Make sure you have chosen the Bengali split of your dataset! \n\n")
+        dataset = dataset.map(bn_unicode_normalise)
+    else:
+        dataset = dataset.map(normalise)
+            
     dataset = dataset.filter(is_target_text_in_range, input_columns=["norm_text"])
 
     predictions = []
@@ -152,11 +177,18 @@ if __name__ == "__main__":
         help="Choose whether you'd like to download the entire dataset or stream it during the evaluation.",
     )
     parser.add_argument(
+        "--do_bangla_unicode_normalize",
+        type=bool,
+        default=True,
+        help="Choose whether you'd like to perform unicode normalization on your Bengali",
+    )
+    parser.add_argument(
         "--language",
         type=str,
         required=True,
         help="Two letter language code for the transcription language, e.g. use 'en' for English.",
     )
+    
     args = parser.parse_args()
 
     main(args)

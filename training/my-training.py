@@ -98,6 +98,14 @@ openslr = load_dataset("openslr", "SLR53", cache_dir=os.path.join(base_dir, 'dat
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 google_fleurs["test"] = load_dataset("google/fleurs", "bn_in", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 
+print("\n\n So, the datasets to be trained are: \n\n")
+print("\n Common Voice 11.0 - Bangla\n")
+print(common_voice)
+print("\n Google Fleurs - Bangla \n")
+print(google_fleurs)
+print("\n OpenSLR-53 - Bangla \n")
+print(openslr)
+print("\n")
 
 ## 5. Small Subset for Testing
 common_voice['train']  = common_voice['train'].select(range(50))
@@ -105,6 +113,12 @@ common_voice['test']  = common_voice['test'].select(range(50))
 google_fleurs['train']  = google_fleurs['train'].select(range(50))
 google_fleurs['test']  = google_fleurs['test'].select(range(50))
 openslr['train'] = openslr['train'].select(range(50))
+
+print("\n\n For testing, the small subsets are:")
+print(common_voice)
+print(google_fleurs)
+print(openslr)
+print("\n")
 
 
 ## 6. Merge Datasets
@@ -139,6 +153,11 @@ my_dataset['test'] = concatenate_datasets([common_voice['test'], google_fleurs['
 
 #shuffle train set with seed=42
 my_dataset['train'] = my_dataset['train'].shuffle(seed=42)
+
+print("\n\n AFTER MERGING, final train and validation sets are: ")
+print("\n My FINAL DATASET \n")
+print(my_dataset)
+print("\n")
 
 
 ## 7. Prepare Feature Extractor, Tokenizer and Processor

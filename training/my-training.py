@@ -222,10 +222,10 @@ my_dataset["train"] = my_dataset["train"].filter(
 )
 
 
-## 10. Save & Cleanup Cache Files
-print("\n\n Saving Preprocessed Dataset to Disk..\n\n")
+## 10. Save & Cleanup Cache Files (DON'T save too large datasets..will take up all space!!)
+# print("\n\n Saving Preprocessed Dataset to Disk..\n\n")
 
-my_dataset.save_to_disk(os.path.join(base_dir, "datasets_cache"))
+# my_dataset.save_to_disk(os.path.join(base_dir, "datasets_cache"))
 
 ## Returns the number of removed cache files
 # my_dataset.cleanup_cache_files()

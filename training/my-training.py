@@ -1,15 +1,15 @@
 ## Run the following commands separately before running the py version of this notebook to connect to HuggningFace Hub!
-#git config --global credential.helper store
-#huggingface-cli login
+#   git config --global credential.helper store
+#   huggingface-cli login
 ## Enter your token by visiting: https://huggingface.co/settings/tokens
-## Create a repo in the hub
-#huggingface-cli repo create whisper-small-es OR, huggingface-cli repo create <repo_name/model_name>
-## Install git lfs 
-# git lfs install
-## git clone <repo_link>
+## Create a repo in the hub:
+#   huggingface-cli repo create whisper-small-es OR, huggingface-cli repo create <repo_name/model_name>
+## Install git lfs and clone the just created repo
+#   git lfs install
+#   git clone <repo_link>
 ## cd to the cloned repo and copy (cp) this python script or everything in training dir to that repo
-# cd <repo_name/model_name>
-# cp /home/mamun/asr_training/Govt_Speech_Demo/training/my-training.py .
+#   cd <repo_name/model_name>
+#   cp /home/mamun/asr_training/Govt_Speech_Demo/training/my-training.py .
 
 
 ## Dependencies (run in the venv before running this script)
@@ -343,8 +343,16 @@ trainer = Seq2SeqTrainer(
     tokenizer=processor.feature_extractor,
 )
 
-## We'll save the processor object once before starting training. Since the processor is not trainable, it won't change over the course of training:
-# processor.save_pretrained(training_args.output_dir)
+## We'll save the processor object once before starting training. Since the processor is not trainable, it won't change over the course of training.
+## The checkpoint dirs don't save the processor files: 
+## (added_tokens.json, merges.txt, normalizer.json, special_tokens_map.json, tokenizer_config.json, vocab.json)
+## So, we save beforehand the processor in the best_model directory. 
+## This is done so that if we stop training earlier than expected, 
+## then we can copy the above files from the best_model dir to the checkpoint folder 
+## to load the processor and run the model from the checkpoint dir.
+# if not os.path.exists("best_model"):
+#     os.makedirs("best_model")
+processor.save_pretrained("best_model")
 
 
 ## 17. Training
@@ -363,9 +371,6 @@ print("\n\n Training COMPLETED...\n\n")
 
 ## 18. Evaluating & Saving Metrics & Model
 print("\n\n Evaluating Model & Saving Metrics...\n\n")
-
-if not os.path.exists("best_model"):
-    os.makedirs("best_model")
 
 processor.save_pretrained("best_model")
 trainer.save_model("best_model")

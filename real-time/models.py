@@ -14,18 +14,18 @@ from optimum.bettertransformer import BetterTransformer
 
 task = "transcribe"  # transcribe or translate
 
-model_name = 'openai/whisper-tiny.en'
+# model_name = 'openai/whisper-tiny.en'
 # model_name = 'openai/whisper-base.en'
 # model_name = 'openai/whisper-small.en'
 # model_name = 'openai/whisper-medium' 
 ## v2: trained on more epochs with regularization
 # model_name = 'openai/whisper-large-v2' 
+
 ## bangla
 # model_name = 'Rakib/whisper-tiny-bn' 
-# model_name = 'Rakib/whisper-tiny-bn-bf16' 
-# model_name = 'Rakib/whisper-tiny-bn-no-optim' 
-model_name = 'anuragshas/whisper-small-bn' 
-# model_name = 'anuragshas/whisper-large-v2-bn' 
+# model_name = 'anuragshas/whisper-small-bn' 
+# model_name = 'anuragshas/whisper-large-v2-bn
+model_name = 'Rakib/whisper-small-bn'  
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
@@ -56,7 +56,7 @@ print("Loading WHISPER ASR Speech-to-Text Model...\n" + "*" * 100)
 
 ## BetterTransformer (No Need if PyTorch 2.0 works!!) 
 ## (currently 2secs faster inference than PyTorch 2.0 )
-model = WhisperForConditionalGeneration.from_pretrained(model_name).to(device)
+model = WhisperForConditionalGeneration.from_pretrained(model_name)
 model = BetterTransformer.transform(model)
 
 ## bitsandbytes (only Linux & GPU) (requires conda env with conda-based pytorch!!!)

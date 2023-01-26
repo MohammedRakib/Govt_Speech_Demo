@@ -25,7 +25,7 @@ task = "transcribe"  # transcribe or translate
 # model_name = 'Rakib/whisper-tiny-bn' 
 # model_name = 'anuragshas/whisper-small-bn' 
 # model_name = 'anuragshas/whisper-large-v2-bn'
-model_name = "/home/mamun/asr_training/whisper-small-bn/checkpoint-54000"   
+model_name = "Rakib/whisper-small-bn"   
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())

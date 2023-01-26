@@ -1,6 +1,16 @@
-## Run the following command separately before running the py version of this notebook to connect to HuggningFace Hub!
+## Run the following commands separately before running the py version of this notebook to connect to HuggningFace Hub!
 #git config --global credential.helper store
 #huggingface-cli login
+## Enter your token by visiting: https://huggingface.co/settings/tokens
+## Create a repo in the hub
+#huggingface-cli repo create whisper-small-es OR, huggingface-cli repo create <repo_name/model_name>
+## Install git lfs 
+# git lfs install
+## git clone <repo_link>
+## cd to the cloned repo and copy (cp) this python script or everything in training dir to that repo
+# cd <repo_name/model_name>
+# cp /home/mamun/asr_training/Govt_Speech_Demo/training/my-training.py .
+
 
 ## Dependencies (run in the venv before running this script)
 # pip install git+https://github.com/huggingface/datasets git+https://github.com/huggingface/transformers 
@@ -47,7 +57,7 @@ eval_steps = 5
 # eval_steps = 1000 
 save_strategy = "steps" 
 # save_steps = 1000 
-save_steps = 2
+save_steps = 5
 save_total_limit = 5 
 learning_rate = 1e-5 
 # warmup_steps = 5000 
@@ -374,19 +384,20 @@ trainer.save_metrics("eval", metrics)
 
 
 ## 19. Push to Hub
-print("\n\n Pushing to Hub...\n\n")
+if push_to_hub:
+    print("\n\n Pushing to Hub...\n\n")
 
-kwargs = {
-    "dataset_tags": ["mozilla-foundation/common_voice_11_0", "google/fleurs", "openslr"],
-    "dataset": "common-voice-11+google-fleurs+openslr53",  # a 'pretty' name for the training dataset
-    "language": "bn",
-    "model_name": "Whisper Small - Mohammed Rakib",  # a 'pretty' name for your model
-    "finetuned_from": "openai/whisper-small",
-    "tasks": "automatic-speech-recognition",
-    "tags": "whisper-event",
-}
+    kwargs = {
+        "dataset_tags": ["mozilla-foundation/common_voice_11_0", "google/fleurs", "openslr"],
+        "dataset": "common-voice-11+google-fleurs+openslr53",  # a 'pretty' name for the training dataset
+        "language": "bn",
+        "model_name": "Whisper Small - Mohammed Rakib",  # a 'pretty' name for your model
+        "finetuned_from": "openai/whisper-small",
+        "tasks": "automatic-speech-recognition",
+        "tags": "whisper-event",
+    }
 
-trainer.push_to_hub(**kwargs)
+    trainer.push_to_hub(**kwargs)
 
 
 print("\n\n DONEEEEEE \n\n")

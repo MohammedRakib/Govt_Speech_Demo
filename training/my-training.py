@@ -16,12 +16,14 @@
 # pip install git+https://github.com/huggingface/datasets git+https://github.com/huggingface/transformers 
 # pip install huggingface_hub ipywidgets librosa evaluate>=0.3.0 jiwer bnunicodenormalizer
 
+
 ## 1. Setting Up Environment Variables & Devices
 import os
 import torch
 
 abs_path = os.path.abspath('.')
 base_dir = os.path.dirname(os.path.dirname(abs_path))
+# base_dir = os.path.dirname(abs_path)
 
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
 os.environ['TRANSFORMERS_OFFLINE'] = '0'
@@ -33,9 +35,11 @@ print(f"\n\n Device to be used: {device} \n\n")
 
 
 ## 2. Setting Up Variables
-# model_name = "openai/whisper-large-v2"
 model_name = "openai/whisper-tiny"
-language = "bn"
+# model_name = "openai/whisper-small"
+# model_name = "openai/whisper-large-v2"
+
+language = "Bengali"
 task = "transcribe" # transcribe or translate
 print(f"\n\n Loading {model_name} for {language} to {task}...this might take a while.. \n\n")
 
@@ -43,7 +47,7 @@ print(f"\n\n Loading {model_name} for {language} to {task}...this might take a w
 ## 3. Setting Up Training Args
 output_dir = "./" 
 overwrite_output_dir = True
-# max_steps = 60000 
+# max_steps = 30000 
 max_steps = 10 
 # per_device_train_batch_size = 4 
 per_device_train_batch_size = 1 
@@ -60,7 +64,7 @@ save_strategy = "steps"
 save_steps = 5
 save_total_limit = 5 
 learning_rate = 1e-5 
-# warmup_steps = 5000 
+# warmup_steps = 3000 
 warmup_steps = 1 
 # logging_steps = 25
 logging_steps = 1
@@ -72,7 +76,7 @@ greater_is_better = False
 bf16 = False
 # tf32 = True 
 tf32 = False
-generation_max_length = 225 
+generation_max_length = 448
 report_to = ["tensorboard"] 
 predict_with_generate = True
 # push_to_hub = True
@@ -106,6 +110,7 @@ print(google_fleurs)
 print("\n OpenSLR-53 - Bangla \n")
 print(openslr)
 print("\n")
+
 
 ## 5. Small Subset for Testing
 common_voice['train']  = common_voice['train'].select(range(50))
@@ -147,8 +152,11 @@ openslr = openslr.remove_columns(
 
 ## merge the three datasets
 my_dataset['train'] = concatenate_datasets([common_voice['train'], google_fleurs['train'], openslr['train']]) #for linux
+# my_dataset['train'] = concatenate_datasets([common_voice['train'], openslr['train']])
 # my_dataset['train'] = concatenate_datasets([google_fleurs['train'], openslr['train']]) #for windows no commonvoice as it requires ffmpeg-4
+# my_dataset['train'] = google_fleurs['train']
 my_dataset['test'] = concatenate_datasets([common_voice['test'], google_fleurs['test']]) #for linux
+# my_dataset['test'] = common_voice['test']
 # my_dataset['test'] = concatenate_datasets([google_fleurs['test']]) #for windows no commonvoice as it requires ffmpeg-4
 
 #shuffle train set with seed=42
@@ -165,6 +173,7 @@ from transformers import WhisperFeatureExtractor, WhisperTokenizer, WhisperProce
 
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model_name)
 
+# tokenizer = WhisperTokenizer.from_pretrained(model_name, language=language, task=task, use_fast=True)
 tokenizer = WhisperTokenizer.from_pretrained(model_name, language=language, task=task)
 
 processor = WhisperProcessor.from_pretrained(model_name, language=language, task=task)
@@ -189,8 +198,9 @@ def prepare_dataset(batch):
 
     # compute log-Mel input features from input audio array 
     batch["input_features"] = processor.feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
-    # compute input length of audio sample in seconds
-    batch["input_length"] = len(audio["array"]) / audio["sampling_rate"]
+
+    # compute input length
+    batch["input_length"] = len(batch["audio"])
     
     # optional pre-processing steps
     transcription = batch["sentence"]
@@ -204,42 +214,110 @@ def prepare_dataset(batch):
     
     # encode target text to label ids
     batch["labels"] = processor.tokenizer(transcription).input_ids
+    
+     # compute labels length **with** special tokens! -> total label length
+    batch["labels_length"] = len(batch["labels"])
+    
     return batch
 
-my_dataset = my_dataset.map(prepare_dataset, num_proc=1)
+## my_dataset is DatasetDict dictionary whereas my_dataset["train"] is Dataset Object.
+## map function parameters for both are different!
+## see: https://github.com/huggingface/datasets/issues/2407
+
+## This,
+my_dataset = my_dataset.map(prepare_dataset, 
+                            num_proc=2, 
+                            load_from_cache_file=True, 
+                            cache_file_names={
+                                "train" : os.path.join(base_dir, 'datasets_cache', 'preprocessed_train_cache.arrow'),
+                                "test" : os.path.join(base_dir, 'datasets_cache', 'preprocessed_test_cache.arrow'),
+                                }
+                            )
+## OR this,
+# my_dataset["train"] = my_dataset["train"].map(
+#                             prepare_dataset, 
+#                             num_proc=2, 
+#                             load_from_cache_file=True, 
+#                             cache_file_name=os.path.join(base_dir, 'datasets_cache', 'preprocessed_train_cache.arrow')
+#                             )
+
+# my_dataset["test"] = my_dataset["test"].map(
+#                             prepare_dataset, 
+#                             num_proc=2, 
+#                             load_from_cache_file=True, 
+#                             cache_file_name=os.path.join(base_dir, 'datasets_cache', 'preprocessed_test_cache.arrow')
+#                             )
 
 
 ## 9. Filter too Short or too Long Audio Files
-max_input_length = 30.0
-min_input_length = 1.0
+MAX_DURATION_IN_SECONDS = 30.0
+max_input_length = MAX_DURATION_IN_SECONDS * 16000
 
-def is_audio_in_length_range(length):
-    return length < max_input_length and length > min_input_length
+def filter_inputs(input_length):
+    """Filter inputs with zero input length or longer than 30s"""
+    return 0 < input_length < max_input_length
+
+max_label_length = 448 #(Check by doing model.config.max_length. Model not yet initialized, so manually written)
+
+def filter_labels(labels_length):
+    """Filter label sequences longer than max length (448)"""
+    return labels_length < max_label_length
 
 my_dataset["train"] = my_dataset["train"].filter(
-    is_audio_in_length_range,
+    filter_inputs,
     input_columns=["input_length"],
 )
 
+my_dataset["train"] = my_dataset["train"].filter(
+    filter_labels,
+    input_columns=["labels_length"],
+)
+
+my_dataset["test"] = my_dataset["test"].filter(
+    filter_inputs,
+    input_columns=["input_length"],
+)
+
+my_dataset["test"] = my_dataset["test"].filter(
+    filter_labels,
+    input_columns=["labels_length"],
+)
+
+print("\n\n AFTER FILTERING, final train and validation sets are: ")
+print("\n My FINAL DATASET \n")
+print(my_dataset)
+print("\n")
+
 
 ## 10. Save & Cleanup Cache Files (DON'T save too large datasets..will take up all space!!)
+## Only save, if you want it to export it to another PC!! 
+## Else, map function stores the cache files via cache_file_name parameter!!
+
 # print("\n\n Saving Preprocessed Dataset to Disk..\n\n")
 
 # my_dataset.save_to_disk(os.path.join(base_dir, "datasets_cache"))
 
-## Returns the number of removed cache files
-# my_dataset.cleanup_cache_files()
-common_voice.cleanup_cache_files()
-google_fleurs.cleanup_cache_files()
-openslr.cleanup_cache_files()
+## Removes unused cached files & returns the number of removed cache files
+print("\n Removing UNUSED Cache Files: \n")
+try:
+    print(f"{my_dataset.cleanup_cache_files()} for my_dataset")
+    print(f"{common_voice.cleanup_cache_files()} for common_voice")
+    print(f"{google_fleurs.cleanup_cache_files()} for google_fleurs")
+    print(f"{openslr.cleanup_cache_files()} for openslr")
+    
+except Exception as e:
+    print(f"\n\n UNABLE to REMOVE some Cache files. \n Error: {e} \n\n")
 
 
 ## 11. Load Already Preprocessed Dataset from Disk
+## Only load if you have a saved dataset via save_to_disk method!!
 ## Do Once 4 to 6 and 8 to 10. Then start from 7 and 11. EVERYTIME!!!
-from datasets import load_from_disk
-print("\n\n Loading Preprocessed Dataset from Disk..\n\n")
 
-my_dataset = load_from_disk(os.path.join(base_dir, "datasets_cache"))
+# from datasets import load_from_disk
+# print("\n\n Loading Preprocessed Dataset from Disk..\n\n")
+
+# my_dataset = load_from_disk(os.path.join(base_dir, "datasets_cache"))
+
 
 ## 12. Define Data Collator
 import torch
@@ -310,6 +388,7 @@ from transformers import WhisperForConditionalGeneration
 
 model = WhisperForConditionalGeneration.from_pretrained(model_name)
 
+
 ## 15. Override generation arguments
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
@@ -369,6 +448,8 @@ trainer = Seq2SeqTrainer(
 ## This is done so that if we stop training earlier than expected, 
 ## then we can copy the above files from the best_model dir to the checkpoint folder 
 ## to load the processor and run the model from the checkpoint dir.
+
+# No need to create best_model folder as trainer automatically creates it!
 # if not os.path.exists("best_model"):
 #     os.makedirs("best_model")
 processor.save_pretrained("best_model")
@@ -413,7 +494,9 @@ if push_to_hub:
 
     kwargs = {
         "dataset_tags": ["mozilla-foundation/common_voice_11_0", "google/fleurs", "openslr"],
+        # "dataset_tags": ["mozilla-foundation/common_voice_11_0", "openslr"],
         "dataset": "common-voice-11+google-fleurs+openslr53",  # a 'pretty' name for the training dataset
+        # "dataset": "common-voice-11+openslr53",  # a 'pretty' name for the training dataset
         "language": "bn",
         "model_name": "Whisper Small - Mohammed Rakib",  # a 'pretty' name for your model
         "finetuned_from": "openai/whisper-small",

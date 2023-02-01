@@ -109,7 +109,7 @@ def main(args):
     wer = wer_metric.compute(references=references, predictions=predictions)
     wer = round(100 * wer, 2)
 
-    print("WER:", wer)
+    print(f"\n\n WER: {wer} \n\n")
     evaluate.push_to_hub(
         model_id=args.model_id,
         metric_value=wer,

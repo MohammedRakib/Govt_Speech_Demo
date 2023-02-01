@@ -51,7 +51,7 @@ overwrite_output_dir = True
 max_steps = 10 
 # per_device_train_batch_size = 4 
 per_device_train_batch_size = 1 
-# per_device_eval_batch_size = 2 
+# per_device_eval_batch_size = 32 
 per_device_eval_batch_size = 1 
 # gradient_accumulation_steps = 8 
 gradient_accumulation_steps = 1 
@@ -226,7 +226,7 @@ def prepare_dataset(batch):
 
 ## This,
 my_dataset = my_dataset.map(prepare_dataset, 
-                            num_proc=2, 
+                            num_proc=4, 
                             load_from_cache_file=True, 
                             cache_file_names={
                                 "train" : os.path.join(base_dir, 'datasets_cache', 'preprocessed_train_cache.arrow'),
@@ -236,14 +236,14 @@ my_dataset = my_dataset.map(prepare_dataset,
 ## OR this,
 # my_dataset["train"] = my_dataset["train"].map(
 #                             prepare_dataset, 
-#                             num_proc=2, 
+#                             num_proc=4, 
 #                             load_from_cache_file=True, 
 #                             cache_file_name=os.path.join(base_dir, 'datasets_cache', 'preprocessed_train_cache.arrow')
 #                             )
 
 # my_dataset["test"] = my_dataset["test"].map(
 #                             prepare_dataset, 
-#                             num_proc=2, 
+#                             num_proc=4, 
 #                             load_from_cache_file=True, 
 #                             cache_file_name=os.path.join(base_dir, 'datasets_cache', 'preprocessed_test_cache.arrow')
 #                             )
@@ -495,7 +495,7 @@ if push_to_hub:
     kwargs = {
         "dataset_tags": ["mozilla-foundation/common_voice_11_0", "google/fleurs", "openslr"],
         # "dataset_tags": ["mozilla-foundation/common_voice_11_0", "openslr"],
-        "dataset": "common-voice-11+google-fleurs+openslr53",  # a 'pretty' name for the training dataset
+        "dataset": ["common-voice-11", "google-fleurs", "openslr53"],  # a 'pretty' name for the training dataset
         # "dataset": "common-voice-11+openslr53",  # a 'pretty' name for the training dataset
         "language": "bn",
         "model_name": "Whisper Small - Mohammed Rakib",  # a 'pretty' name for your model

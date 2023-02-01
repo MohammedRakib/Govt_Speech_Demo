@@ -120,7 +120,8 @@ def main(args):
         dataset_split=args.split,
         dataset_config=args.config,
         task_type="automatic-speech-recognition",
-        task_name="Automatic Speech Recognition"
+        task_name="Automatic Speech Recognition",
+        overwrite=True
     )
 
 

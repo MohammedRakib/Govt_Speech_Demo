@@ -5,9 +5,9 @@ import librosa
 import time
 from models import asr, processor
 
-task = "transcribe"  # transcribe or translate
-language = "bn"
-asr.model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=language, task=task)
+# task = "transcribe"  # transcribe or translate
+# language = "bn"
+# asr.model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=language, task=task)
 # asr.model.config.max_new_tokens = 448 #default is 448
 
 def _preprocess(filename):
@@ -16,7 +16,7 @@ def _preprocess(filename):
      return audio_name
 
 def transcribe(microphone, state=""):
-    # time.sleep(1)
+    # time.sleep(2)
 
     print(f"\n\nFile is: {microphone}\n\n")
     

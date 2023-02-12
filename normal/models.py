@@ -12,6 +12,8 @@ from transformers import pipeline, AutoTokenizer, AutoFeatureExtractor, AutoConf
 from typing import Union, BinaryIO
 from optimum.bettertransformer import BetterTransformer
 
+language = '<|bn|>'
+# language = '<|en|>'
 task = "transcribe"  # transcribe or translate
 
 # model_name = 'openai/whisper-tiny.en'
@@ -25,7 +27,8 @@ task = "transcribe"  # transcribe or translate
 # model_name = 'Rakib/whisper-tiny-bn' 
 # model_name = 'anuragshas/whisper-small-bn' 
 # model_name = 'anuragshas/whisper-large-v2-bn'
-model_name = "Rakib/whisper-small-bn"   
+# model_name = "Rakib/whisper-small-bn"
+model_name = "Rakib/whisper-small-bn-all"
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
@@ -41,6 +44,7 @@ if device !=0:
 print("Loading Tokenizer for ASR Speech-to-Text Model...\n" + "*" * 100)
 # tokenizer = AutoTokenizer.from_pretrained(model_name, language=language, task=task)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+# tokenizer(['�', '�্র'],add_prefix_space=True, add_special_tokens=False).input_ids
 
 print("Loading Feature Extractor for ASR Speech-to-Text Model...\n" + "*" * 100)
 feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
@@ -85,10 +89,20 @@ asr = pipeline(
     ## With only 1 number, both sides get the same stride, by default
     ## The stride_length on one side is 1/6th of the chunk_length_s if stride_length no provided
     stride_length_s=(5, 5),
-    ignore_warning=True,
+    # stride_length_s=[6,0],
+    batch_size=1,
+    # ignore_warning=True,
     ## force whisper to generate timestamps so that the chunking and stitching can be accurate
     # return_timestamps=True, 
-    # decoder_kwargs={"max_new_tokens": 448},  ##default is 448
+    generate_kwargs = {'language':language, 
+                       'task':task, 
+                       'repetition_penalty':1.2,
+                       'num_beams':2,
+                       'max_new_tokens':448,
+                       'early_stopping':True,
+                       # [16867]: �, [16867, 156, 100, 235, 156, 12811]: �্র
+                       'bad_words_ids':[[16867], [16867, 156, 100, 235, 156, 12811]]
+                       }
 )
 
 

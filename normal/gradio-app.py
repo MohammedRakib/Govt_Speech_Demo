@@ -7,9 +7,9 @@ import librosa
 ## details: https://huggingface.co/docs/diffusers/optimization/fp16#automatic-mixed-precision-amp
 # from torch import autocast 
 
-task = "transcribe"  # transcribe or translate
-language = "bn"
-asr.model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=language, task=task)
+# task = "transcribe"  # transcribe or translate
+# language = "bn"
+# asr.model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=language, task=task)
 # asr.model.config.max_new_tokens = 448 #default is 448
 
 def _preprocess(filename):

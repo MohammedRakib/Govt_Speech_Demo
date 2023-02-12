@@ -12,7 +12,7 @@ def _preprocess(filename):
      return audio_name
 
 def transcribe(microphone, state=""):
-    # time.sleep(2)
+    time.sleep(2)
 
     print(f"\n\nFile is: {microphone}\n\n")
     
@@ -45,7 +45,7 @@ demo = gr.Interface(
         "text",
         "state",
     ],
-    title="Whisper Bangla REAL-TIME Demo: Transcribe Audio",
+    title="Wav2Vec2 Bangla REAL-TIME Demo: Transcribe Audio",
     description=(
         "Transcribe BANGLA audio input in REAL-TIME with the click of a button!"
     ),

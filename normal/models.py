@@ -88,9 +88,9 @@ asr = pipeline(
     ## stride_length_s is a tuple of the left and right stride(overlap) length.
     ## With only 1 number, both sides get the same stride, by default
     ## The stride_length on one side is 1/6th of the chunk_length_s if stride_length no provided
-    stride_length_s=(5, 5),
+    stride_length_s=[8, 8],
     # stride_length_s=[6,0],
-    batch_size=1,
+    batch_size=16,
     # ignore_warning=True,
     ## force whisper to generate timestamps so that the chunking and stitching can be accurate
     # return_timestamps=True, 

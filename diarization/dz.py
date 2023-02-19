@@ -1,350 +1,405 @@
+from __future__ import unicode_literals
+import youtube_dl
+import yt_dlp
+from pydub import AudioSegment
+from pyannote.audio import Pipeline
+import re
 import whisper
-import datetime
+import os
+import ffmpeg
 import subprocess
 import gradio as gr
-from pathlib import Path
-import pandas as pd
-import re
-import time
-import os 
-import numpy as np
-from sklearn.cluster import AgglomerativeClustering
-
-from pytube import YouTube
+import traceback
+import json
+pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token="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")
+from pydub.effects import speedup
+import moviepy.editor as mp
+import datetime
 import torch
 import pyannote.audio
-from pyannote.audio.pipelines.speaker_verification import PretrainedSpeakerEmbedding
+from pyannote.audio.pipelines.speaker_verification import SpeechBrainPretrainedSpeakerEmbedding #PyannoteAudioPretrainedSpeakerEmbedding
 from pyannote.audio import Audio
 from pyannote.core import Segment
-from scipy.io import wavfile
-from gpuinfo import GPUInfo
-
 import wave
 import contextlib
-from transformers import pipeline
-import psutil
-
-from models import asr, processor 
-import pydub
+from sklearn.cluster import AgglomerativeClustering
 import numpy as np
-import noisereduce as nr
+import json
+from datetime import timedelta
+import pytube as pt
+from models import asr
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 
+__FILES = set()
+wispher_models = list(whisper._MODELS.keys())
 
-whisper_models = ["base", "small", "medium", "large"]
-source_languages = {
-    "en": "English",
-}
-
-source_language_list = [key[0] for key in source_languages.items()]
-
-MODEL_NAME = "vumichien/whisper-medium-jp"
-lang = "ja"
-
-device = 0 if torch.cuda.is_available() else "cpu"
-pipe = pipeline(
-    task="automatic-speech-recognition",
-    model=MODEL_NAME,
-    chunk_length_s=30,
-    device=device,
-)
-
-
-pipe.model.config.forced_decoder_ids = pipe.tokenizer.get_decoder_prompt_ids(language=lang, task="transcribe")
-
-embedding_model = PretrainedSpeakerEmbedding( 
-    "speechbrain/spkrec-ecapa-voxceleb",
-    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 def _preprocess(filename):
-     audio_name = filename
+     audio_name = "temp_audio.wav"
      subprocess.call(['ffmpeg', '-y', '-i', filename, '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', "-loglevel", "quiet", audio_name])
      return audio_name
-def pr2(start,end,filename):
-    audio_name = filename
-    subprocess.call(['ffmpeg', '-y', '-i', filename, 'ffmpeg', '-i', filename, '-ss', '20', '-to', '40' ,'-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', "-loglevel", "quiet", audio_name])
-    return audio_name
 
-def transcribe(microphone, file_upload):
-    warn_output = ""
-    if (microphone is not None) and (file_upload is not None):
-        warn_output = (
-            "WARNING: You've uploaded an audio file and used the microphone. "
-            "The recorded file from the microphone will be used and the uploaded audio will be discarded.\n"
-        )
 
-    elif (microphone is None) and (file_upload is None):
-        return "ERROR: You have to either use the microphone or upload an audio file"
+def correct_grammar(input_text,num_return_sequences=1):
+    torch_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    tokenizer = T5Tokenizer.from_pretrained('deep-learning-analytics/GrammarCorrector')
+    model = T5ForConditionalGeneration.from_pretrained('deep-learning-analytics/GrammarCorrector').to(torch_device)
+    batch = tokenizer([input_text],truncation=True,padding='max_length',max_length=len(input_text), return_tensors="pt").to(torch_device)
+    results = model.generate(**batch,max_length=len(input_text),num_beams=2, num_return_sequences=num_return_sequences, temperature=1.5)
+    generated_sequences = []
+    for generated_sequence_idx, generated_sequence in enumerate(results):
+        text = tokenizer.decode(generated_sequence, clean_up_tokenization_spaces=True, skip_special_tokens=True)
+        generated_sequences.append(text)
+    generated_text = "".join(generated_sequences)
+    _generated_text = ""
+    for idx, _sentence in enumerate(generated_text.split('.'), 0):
+        if not idx:
+            _generated_text+=_sentence+'.'
+        elif _sentence[:1]!=' ':
+            _generated_text+=' '+_sentence+'.'
+        elif _sentence[:1]=='':
+            pass
+        else:
+            _generated_text+=_sentence+'.'
+    return _generated_text
 
-    file = microphone if microphone is not None else file_upload
+def CreateFile(filename):
+    __FILES.add(filename)
+    return filename
 
-    text = pipe(file)["text"]
+def RemoveFile(filename):
+    if (os.path.isfile(filename)):
+        os.remove(filename)
 
-    return warn_output + text
-
-def _return_yt_html_embed(yt_url):
-    video_id = yt_url.split("?v=")[-1]
-    HTML_str = (
-        f'<center> <iframe width="500" height="320" src="https://www.youtube.com/embed/{video_id}"> </iframe>'
-        " </center>"
-    )
-    return HTML_str
-
-def yt_transcribe(yt_url):
-    yt = YouTube(yt_url)
-    html_embed_str = _return_yt_html_embed(yt_url)
-    stream = yt.streams.filter(only_audio=True)[0]
-    stream.download(filename="audio.mp3")
-
-    text = pipe("audio.mp3")["text"]
-
-    return html_embed_str, text
-
-def convert_time(secs):
-    return datetime.timedelta(seconds=round(secs))
-
-def get_youtube(video_url):
-    yt = YouTube(video_url)
-    abs_video_path = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first().download()
-    print("Success download video")
-    print(abs_video_path)
-    return abs_video_path
-
-def speech_to_text(video_file_path, selected_source_lang, whisper_model, num_speakers):
-    """
-    # Transcribe youtube link using OpenAI Whisper
-    1. Using Open AI's Whisper model to seperate audio into segments and generate transcripts.
-    2. Generating speaker embeddings for each segments.
-    3. Applying agglomerative clustering on the embeddings to identify the speaker for each segment.
+def RemoveAllFiles():
+    for file in __FILES:
+        if (os.path.isfile(file)):
+            os.remove(file)
     
-    Speech Recognition is based on models from OpenAI Whisper https://github.com/openai/whisper
-    Speaker diarization model and pipeline from by https://github.com/pyannote/pyannote-audio
-    """
+def Transcribe_V1(NumberOfSpeakers, SpeakerNames="", audio="temp_audio.wav"):
+    SPEAKER_DICT = {}
+    SPEAKERS = [speaker.strip() for speaker in SpeakerNames.split(',') if len(speaker)]
     
-    model = whisper.load_model(whisper_model)
-    time_start = time.time()
-    if(video_file_path == None):
-        raise ValueError("Error no video input")
-    print(video_file_path)
-
-    try:
-        # Read and convert youtube video
-        _,file_ending = os.path.splitext(f'{video_file_path}')
-        print(f'file enging is {file_ending}')
-        audio_file = video_file_path.replace(file_ending, ".wav")
-        print("starting conversion to wav")
-        os.system(f'ffmpeg -i "{video_file_path}" -ar 16000 -ac 1 -c:a pcm_s16le "{audio_file}"')
+    def GetSpeaker(sp):
+        speaker = sp
+        if sp not in list(SPEAKER_DICT.keys()):
+            if len(SPEAKERS):
+                t = SPEAKERS.pop(0)
+                SPEAKER_DICT[sp] = t
+                speaker = SPEAKER_DICT[sp]
+        else:
+            speaker = SPEAKER_DICT[sp]
+        return speaker
         
-        # Get duration
-        with contextlib.closing(wave.open(audio_file,'r')) as f:
+    def millisec(timeStr):
+        spl = timeStr.split(":")
+        s = (int)((int(spl[0]) * 60 * 60 + int(spl[1]) * 60 + float(spl[2]) )* 1000)
+        return s
+    
+    def preprocess(audio):
+        t1 = 0 * 1000 
+        t2 = 20 * 60 * 1000
+        newAudio = AudioSegment.from_wav(audio)
+        a = newAudio[t1:t2]
+        spacermilli = 2000
+        spacer = AudioSegment.silent(duration=spacermilli)
+        newAudio = spacer.append(a, crossfade=0)
+        newAudio.export(audio, format="wav")
+        return spacermilli, spacer
+    
+    def diarization(audio):
+        as_audio = AudioSegment.from_wav(audio)
+        DEMO_FILE = {'uri': 'blabal', 'audio': audio}
+        if NumberOfSpeakers:
+            dz = pipeline(DEMO_FILE, num_speakers=NumberOfSpeakers)  
+        else:
+            dz = pipeline(DEMO_FILE)  
+        with open(CreateFile(f"diarization_{audio}.txt"), "w") as text_file:
+            text_file.write(str(dz))
+        dz = open(CreateFile(f"diarization_{audio}.txt")).read().splitlines()
+        dzList = []
+        for l in dz:
+            start, end =  tuple(re.findall('[0-9]+:[0-9]+:[0-9]+\.[0-9]+', string=l))
+            start = millisec(start)
+            end = millisec(end)
+            lex = GetSpeaker(re.findall('(SPEAKER_[0-9][0-9])', string=l)[0])
+            dzList.append([start, end, lex])
+        sounds = spacer
+        segments = []
+        dz = open(CreateFile(f"diarization_{audio}.txt")).read().splitlines()
+        for l in dz:
+            start, end =  tuple(re.findall('[0-9]+:[0-9]+:[0-9]+\.[0-9]+', string=l))
+            start = millisec(start)
+            end = millisec(end) 
+            segments.append(len(sounds))
+            sounds = sounds.append(as_audio[start:end], crossfade=0)
+            sounds = sounds.append(spacer, crossfade=0)
+        sounds.export(CreateFile(f"dz_{audio}.wav"), format="wav")
+        return f"dz_{audio}.wav", dzList, segments
+    
+    def transcribe(dz_audio):
+        model = whisper.load_model("medium")
+        result = model.transcribe(dz_audio)
+        # for _ in result['segments']:
+        #     print(_['start'], _['end'], _['text'])
+        captions = [[((caption["start"]*1000)), ((caption["end"]*1000)),  caption["text"]] for caption in result['segments']]
+        conversation = []
+        for i in range(len(segments)):
+            idx = 0
+            for idx in range(len(captions)):
+                if captions[idx][0] >= (segments[i] - spacermilli):
+                    break;
+            
+            while (idx < (len(captions))) and ((i == len(segments) - 1) or (captions[idx][1] < segments[i+1])):
+                  c = captions[idx]  
+                  start = dzList[i][0] + (c[0] -segments[i])
+                  if start < 0: 
+                      start = 0
+                  idx += 1
+                  if not len(conversation):
+                      conversation.append([dzList[i][2], c[2]])
+                  elif conversation[-1][0] == dzList[i][2]:
+                      conversation[-1][1] +=  c[2]
+                  else:
+                      conversation.append([dzList[i][2], c[2]])
+                  #print(f"[{dzList[i][2]}] {c[2]}")
+        return conversation, ("".join([f"{speaker} --> {text}\n" for speaker, text in conversation]))
+
+    spacermilli, spacer = preprocess(audio)
+    dz_audio, dzList, segments = diarization(audio)
+    conversation, t_text = transcribe(dz_audio)
+    RemoveAllFiles()
+    return (t_text, ({ "data": [{"speaker": speaker, "text": text} for speaker, text in conversation]}))
+
+
+def Transcribe_V2(model, num_speakers, speaker_names, audio="temp_audio.wav"):
+    model = whisper.load_model(model)
+    # embedding_model = SpeechBrainPretrainedSpeakerEmbedding("speechbrain/spkrec-ecapa-voxceleb")
+    
+    embedding_model = SpeechBrainPretrainedSpeakerEmbedding(
+        "speechbrain/spkrec-ecapa-voxceleb",
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    )
+    SPEAKER_DICT = {}
+    default_speaker_names = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
+    SPEAKERS = [speaker.strip() for speaker in speaker_names.split(',') if len(speaker)]
+    def GetSpeaker(sp):
+        speaker = sp
+        if sp not in list(SPEAKER_DICT.keys()):
+            if len(SPEAKERS):
+                t = SPEAKERS.pop(0)
+                SPEAKER_DICT[sp] = t
+                speaker = SPEAKER_DICT[sp]
+            elif len(default_speaker_names):
+                t = default_speaker_names.pop(0)
+                SPEAKER_DICT[sp] = t
+                speaker = SPEAKER_DICT[sp]
+        else:
+            speaker = SPEAKER_DICT[sp]
+        return speaker
+    
+    # audio = Audio()
+    def diarization(audio):
+        def millisec(timeStr):
+            spl = timeStr.split(":")
+            s = (int)((int(spl[0]) * 60 * 60 + int(spl[1]) * 60 + float(spl[2]) )* 1000)
+            return s
+        as_audio = AudioSegment.from_wav(audio)
+        DEMO_FILE = {'uri': 'blabal', 'audio': audio}
+        hparams = pipeline.parameters(instantiated=True)
+        hparams["segmentation"]["min_duration_off"] -= 0.25
+        pipeline.instantiate(hparams)
+        if num_speakers:
+            dz = pipeline(DEMO_FILE, num_speakers=num_speakers)  
+        else:
+            dz = pipeline(DEMO_FILE)  
+        with open(CreateFile(f"diarization_{audio}.txt"), "w") as text_file:
+            text_file.write(str(dz))
+        dz = open(CreateFile(f"diarization_{audio}.txt")).read().splitlines()
+        print(dz)
+        dzList = []
+        for l in dz:
+            start, end =  tuple(re.findall('[0-9]+:[0-9]+:[0-9]+\.[0-9]+', string=l))
+            start = millisec(start)
+            end = millisec(end)
+            lex = GetSpeaker(re.findall('(SPEAKER_[0-9][0-9])', string=l)[0])
+            dzList.append([start, end, lex])
+        return dzList
+    
+    def get_output(segments):
+        # print(segments)
+        conversation=[]
+        for (i, segment) in enumerate(segments):
+            # print(f"{i}, {segment["speaker"]}, {segments[i - 1]["speaker"]}, {}")
+            if not len(conversation):
+                conversation.append([str(timedelta(seconds=float(segment['start']))),str(timedelta(seconds=float(segment['end']))),GetSpeaker(segment["speaker"]), segment["text"].lstrip()])
+            elif conversation[-1][2] == GetSpeaker(segment["speaker"]):
+                conversation[-1][3] +=  segment["text"].lstrip()
+            else:
+                conversation.append([str(timedelta(seconds=float(segment['start']))),str(timedelta(seconds=float(segment['end']))),GetSpeaker(segment["speaker"]), segment["text"].lstrip()])
+            # if i == 0 or segments[i - 1]["speaker"] != segment["speaker"]:
+            #     if i != 0:
+            #         conversation.append([GetSpeaker(segment["speaker"]), segment["text"][1:]]) # segment["speaker"] + ' ' + str(time(segment["start"])) + '\n\n'
+            # conversation[-1][1] += segment["text"][1:]
+        # return output
+        for idx in range(len(conversation)):
+            conversation[idx][3] = correct_grammar(conversation[idx][3])
+        return ("".join([f"[{start}] - {speaker} \n{text}\n" for start, end, speaker, text in conversation])), ({ "data": [{"start": start, "end":end, "speaker": speaker, "text": text} for start, end, speaker, text in conversation]})
+
+    def get_duration(path):
+        with contextlib.closing(wave.open(path,'r')) as f:
             frames = f.getnframes()
             rate = f.getframerate()
-            duration = frames / float(rate)
-        print(f"conversion to wav ready, duration of audio file: {duration}")
+        return frames / float(rate)
 
-        # Transcribe audio
-        options = dict(language=selected_source_lang, beam_size=16, best_of=5)
-        transcribe_options = dict(task="transcribe", **options)
-        print('speech array')
-        #speech_array = _preprocess(filename=audio_file)
-        
-        asr.model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language='bengali', task="transcribe")
-        result = model.transcribe(audio_file, **transcribe_options)
-        sound_file = pydub.AudioSegment.from_wav(audio_file)+6
-        sound_file_Value = np.array(sound_file.get_array_of_samples())
-        segments = result["segments"]
-        print("starting whisper done with whisper")
-    except Exception as e:
-        raise RuntimeError("Error converting video to audio")
-
-    try:
-        # Create embedding
-        def segment_embedding(segment):
-            audio = Audio()
-            start = segment["start"]
-            # Whisper overshoots the end timestamp in the last segment
-            end = min(duration, segment["end"])
-            s = int(0*10000)
-            e = int(26*10000)
-            new_file=sound_file_Value[s : e]
-            print(len(new_file))
-            song = pydub.AudioSegment(new_file.tobytes(), frame_rate=sound_file.frame_rate,sample_width=sound_file.sample_width,channels=1)
-            song.export("audio2.wav", format="wav",bitrate="256k")
-            filen = "audio2.wav"
-            rate, data = wavfile.read("audio2.wav")
-            reduced_noise = nr.reduce_noise(y=data, sr=rate)
-            wavfile.write("audio2.wav", rate, reduced_noise)
-            speech_array = _preprocess(filen)
-            print(asr(speech_array))
-            clip = Segment(start, end)
-            waveform, sample_rate = audio.crop(audio_file, clip)
-            
-            return embedding_model(waveform[None])
-
+    def make_embeddings(path, segments, duration):
         embeddings = np.zeros(shape=(len(segments), 192))
         for i, segment in enumerate(segments):
-            embeddings[i] = segment_embedding(segment)
-        embeddings = np.nan_to_num(embeddings)
-        print(f'Embedding shape: {embeddings.shape}')
+            embeddings[i] = segment_embedding(path, segment, duration)
+        return np.nan_to_num(embeddings)
 
-        # Assign speaker label
+    def segment_embedding(path, segment, duration):
+        start = segment["start"]
+        # Whisper overshoots the end timestamp in the last segment
+        end = min(duration, segment["end"])
+        print(start)
+        print(segment['text'])
+        print(end)
+        clip = Segment(start, end)
+        waveform, sample_rate = Audio().crop(path, clip)
+        return embedding_model(waveform[None])
+
+    def add_speaker_labels(segments, embeddings, num_speakers):
         clustering = AgglomerativeClustering(num_speakers).fit(embeddings)
         labels = clustering.labels_
         for i in range(len(segments)):
             segments[i]["speaker"] = 'SPEAKER ' + str(labels[i] + 1)
 
-        # Make output
-        objects = {
-            'Start' : [],
-            'End': [],
-            'Speaker': [],
-            'Text': []
-        }
-        text = ''
-        for (i, segment) in enumerate(segments):
-            if i == 0 or segments[i - 1]["speaker"] != segment["speaker"]:
-                objects['Start'].append(str(convert_time(segment["start"])))
-                objects['Speaker'].append(segment["speaker"])
-                if i != 0:
-                    objects['End'].append(str(convert_time(segments[i - 1]["end"])))
-                    objects['Text'].append(text)
-                    text = ''
-            text += segment["text"] + ' '
-        objects['End'].append(str(convert_time(segments[i - 1]["end"])))
-        objects['Text'].append(text)
-        
-        time_end = time.time()
-        time_diff = time_end - time_start
-        memory = psutil.virtual_memory()
-        gpu_utilization, gpu_memory = GPUInfo.gpu_usage()
-        gpu_utilization = gpu_utilization[0] if len(gpu_utilization) > 0 else 0
-        gpu_memory = gpu_memory[0] if len(gpu_memory) > 0 else 0
-        system_info = f"""
-        *Memory: {memory.total / (1024 * 1024 * 1024):.2f}GB, used: {memory.percent}%, available: {memory.available / (1024 * 1024 * 1024):.2f}GB.* 
-        *Processing time: {time_diff:.5} seconds.*
-        *GPU Utilization: {gpu_utilization}%, GPU Memory: {gpu_memory}MiB.*
-        """
+    def time(secs):
+        return datetime.timedelta(seconds=round(secs))
 
-        return pd.DataFrame(objects), system_info
-    
-    except Exception as e:
-        raise RuntimeError("Error Running inference with local model", e)
+    duration = get_duration(audio)
+    if duration > 4 * 60 * 60:
+        return "Audio duration too long"
 
+    # print(json.dumps(diarization(audio)))
+    speech_array = _preprocess(filename='temp_audio.wav')
+    print(asr(speech_array)['text'])
+    result = model.transcribe(audio)
+    # print(json.dumps(result))
 
-# ---- Gradio Layout -----
-# Inspiration from https://huggingface.co/spaces/RASMUS/Whisper-youtube-crosslingual-subtitles
-video_in = gr.Video(label="Video file", mirror_webcam=False)
-youtube_url_in = gr.Textbox(label="Youtube url", lines=1, interactive=True)
-df_init = pd.DataFrame(columns=['Start', 'End', 'Speaker', 'Text'])
-memory = psutil.virtual_memory()
-selected_source_lang = gr.Dropdown(choices=source_language_list, type="value", value="en", label="Spoken language in video", interactive=True)
-selected_whisper_model = gr.Dropdown(choices=whisper_models, type="value", value="base", label="Selected Whisper model", interactive=True)
-number_speakers = gr.Number(precision=0, value=2, label="Selected number of speakers", interactive=True)
-system_info = gr.Markdown(f"*Memory: {memory.total / (1024 * 1024 * 1024):.2f}GB, used: {memory.percent}%, available: {memory.available / (1024 * 1024 * 1024):.2f}GB*")
-transcription_df = gr.DataFrame(value=df_init,label="Transcription dataframe", row_count=(0, "dynamic"), max_rows = 10, wrap=True, overflow_row_behaviour='paginate')
-title = "Whisper speaker diarization"
-demo = gr.Blocks(title=title)
-demo.encrypt = False
+    segments = result["segments"]
 
+    num_speakers = min(max(round(num_speakers), 1), len(segments))
+    if len(segments) == 1:
+        segments[0]['speaker'] = 'SPEAKER 1'
+    else:
+        embeddings = make_embeddings(audio, segments, duration)
+        add_speaker_labels(segments, embeddings, num_speakers)
+    return get_output(segments)
+    # return output
 
-with demo:
-    with gr.Tab("Whisper speaker diarization"):
-        gr.Markdown('''
-            <div>
-            <h1 style='text-align: center'>Whisper speaker diarization</h1>
-            This space uses Whisper models from <a href='https://github.com/openai/whisper' target='_blank'><b>OpenAI</b></a> to recoginze the speech and ECAPA-TDNN model from <a href='https://github.com/speechbrain/speechbrain' target='_blank'><b>SpeechBrain</b></a> to encode and clasify speakers</h2>
-            </div>
-        ''')
+def AudioTranscribe(NumberOfSpeakers=None, SpeakerNames="", audio="", retries=5, model='base'):
+    print(f"{NumberOfSpeakers}, {SpeakerNames}, {retries}")
+    if retries:
+        # subprocess.call(['ffmpeg', '-i', audio,'temp_audio.wav'])
+        try:
+            subprocess.call(['ffmpeg', '-i', audio,'temp_audio.wav'])
+        except Exception as ex:
+            traceback.print_exc()
+            return AudioTranscribe(NumberOfSpeakers, SpeakerNames, audio, retries-1)
+        if not (os.path.isfile("temp_audio.wav")):
+            return AudioTranscribe(NumberOfSpeakers, SpeakerNames, audio, retries-1)
+        return Transcribe_V2(model, NumberOfSpeakers, SpeakerNames)
+    else:
+        raise gr.Error("There is some issue ith Audio Transcriber. Please try again later!")
 
-        with gr.Row():
-            gr.Markdown('''
-            ### Transcribe youtube link using OpenAI Whisper
-            ##### 1. Using Open AI's Whisper model to seperate audio into segments and generate transcripts.
-            ##### 2. Generating speaker embeddings for each segments.
-            ##### 3. Applying agglomerative clustering on the embeddings to identify the speaker for each segment.
-            ''')
+def VideoTranscribe(NumberOfSpeakers=None, SpeakerNames="", video="", retries=5, model='base'):
+    if retries:
+        try:
+            clip = mp.VideoFileClip(video)
+            clip.audio.write_audiofile("temp_audio.wav")
+            # command = f"ffmpeg -i {video} -ab 160k -ac 2 -ar 44100 -vn temp_audio.wav"
+            # subprocess.call(command, shell=True)
+        except Exception as ex:
+            traceback.print_exc()
+            return VideoTranscribe(NumberOfSpeakers, SpeakerNames, video, retries-1)
+        if not (os.path.isfile("temp_audio.wav")):
+            return VideoTranscribe(NumberOfSpeakers, SpeakerNames, video, retries-1)
+        return Transcribe_V2(model, NumberOfSpeakers, SpeakerNames)
+    else:
+        raise gr.Error("There is some issue ith Video Transcriber. Please try again later!")
+
+def YoutubeTranscribe(NumberOfSpeakers=None, SpeakerNames="", URL="", retries = 5, model='base'):
+    if retries:
+        if "youtu" not in URL.lower():
+            raise gr.Error(f"{URL} is not a valid youtube URL.")
+        else:
+            RemoveFile("temp_audio.wav")
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': 'temp_audio.%(ext)s',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'wav',
+                }],
+            }
             
-        with gr.Row():         
-            gr.Markdown('''
-                ### You can test by following examples:
-                ''')
-        examples = gr.Examples(examples=
-                [ "https://www.youtube.com/watch?v=j7BfEzAFuYc&t=32s", 
-                  "https://www.youtube.com/watch?v=-UX0X45sYe4", 
-                  "https://www.youtube.com/watch?v=7minSgqi-Gw"],
-              label="Examples", inputs=[youtube_url_in])
-              
+            yt = pt.YouTube(URL)
+            #html_embed_str = _return_yt_html_embed(yt_url)
+            stream = yt.streams.filter(only_audio=True)[0]
+            filename = "temp_audio.mp3"
 
-        with gr.Row():
-            with gr.Column():
-                youtube_url_in.render()
-                download_youtube_btn = gr.Button("Download Youtube video")
-                download_youtube_btn.click(get_youtube, [youtube_url_in], [
-                    video_in])
-                print(video_in)
-                
+            stream.download(filename=filename)
+            import subprocess
 
-        with gr.Row():
-            with gr.Column():
-                video_in.render()
-                with gr.Column():
-                    gr.Markdown('''
-                    ##### Here you can start the transcription process.
-                    ##### Please select the source language for transcription.
-                    ##### You should select a number of speakers for getting better results.
-                    ''')
-                selected_source_lang.render()
-                selected_whisper_model.render()
-                number_speakers.render()
-                transcribe_btn = gr.Button("Transcribe audio and diarization")
-                transcribe_btn.click(speech_to_text, [video_in, selected_source_lang, selected_whisper_model, number_speakers], [transcription_df, system_info])
+            subprocess.call(['ffmpeg', '-i', 'temp_audio.mp3',
+        'temp_audio.wav'])
 
-                
-        with gr.Row():
-            gr.Markdown('''
-            ##### Here you will get transcription  output
-            ##### ''')
-            
+            #removeFile("temp_audio.m4a")
+            return Transcribe_V2(model, NumberOfSpeakers, SpeakerNames)
+    else:
+        raise gr.Error(f"Unable to get video from {URL}")
+ 
 
-        with gr.Row():
-            with gr.Column():
-                transcription_df.render()
-                system_info.render()
-                gr.Markdown('''<center><img src='https://visitor-badge.glitch.me/badge?page_id=WhisperDiarizationSpeakers' alt='visitor badge'></center>''')
-    
-    with gr.Tab("Whisper Transcribe Japanese Audio"):
-        gr.Markdown(f'''
-              <div>
-              <h1 style='text-align: center'>Whisper Transcribe Japanese Audio</h1>
-              </div>
-              Transcribe long-form microphone or audio inputs with the click of a button! The fine-tuned
-              checkpoint <a href='https://huggingface.co/{MODEL_NAME}' target='_blank'><b>{MODEL_NAME}</b></a> to transcribe audio files of arbitrary length.
-          ''')
-        microphone = gr.inputs.Audio(source="microphone", type="filepath", optional=True)
-        upload = gr.inputs.Audio(source="upload", type="filepath", optional=True)
-        transcribe_btn = gr.Button("Transcribe Audio")
-        text_output = gr.Textbox()
-        with gr.Row():         
-            gr.Markdown('''
-                ### You can test by following examples:
-                ''')
-        examples = gr.Examples(examples=
-              [ "sample1.wav", 
-                "sample2.wav", 
-                ],
-              label="Examples", inputs=[upload])
-        transcribe_btn.click(transcribe, [microphone, upload], outputs=text_output)
-    
-    with gr.Tab("Whisper Transcribe Japanese YouTube"):
-        gr.Markdown(f'''
-              <div>
-              <h1 style='text-align: center'>Whisper Transcribe Japanese YouTube</h1>
-              </div>
-                Transcribe long-form YouTube videos with the click of a button! The fine-tuned checkpoint:
-                <a href='https://huggingface.co/{MODEL_NAME}' target='_blank'><b>{MODEL_NAME}</b></a> to transcribe audio files of arbitrary length.
-            ''')
-        youtube_link = gr.Textbox(label="Youtube url", lines=1, interactive=True)
-        yt_transcribe_btn = gr.Button("Transcribe YouTube")
-        text_output2 = gr.Textbox()
-        html_output = gr.Markdown()
-        yt_transcribe_btn.click(yt_transcribe, [youtube_link], outputs=[html_output, text_output2])
-
-demo.launch(debug=True)
+with gr.Blocks() as yav_ui:
+    with gr.Row():
+        with gr.Column():
+            with gr.Tab("Youtube", id=1):
+                ysz = gr.Dropdown(label="Model Size", choices=wispher_models , value='base')
+                yinput_nos = gr.Number(label="Number of Speakers", placeholder="2")
+                yinput_sn = gr.Textbox(label="Name of the Speakers (ordered by the time they speak and separated by comma)", placeholder="If Speaker 1 is first to speak followed by Speaker 2 then -> Speaker 1, Speaker 2")
+                yinput = gr.Textbox(label="Youtube Link", placeholder="https://www.youtube.com/watch?v=GECcjrYHH8w")
+                ybutton_transcribe = gr.Button("Transcribe", show_progress=True, scroll_to_output=True)
+            with gr.Tab("Video", id=2):
+                vsz = gr.Dropdown(label="Model Size", choices=wispher_models, value='base')
+                vinput_nos = gr.Number(label="Number of Speakers", placeholder="2")
+                vinput_sn = gr.Textbox(label="Name of the Speakers (ordered by the time they speak and separated by comma)", placeholder="If Speaker 1 is first to speak followed by Speaker 2 then -> Speaker 1, Speaker 2")
+                vinput = gr.Video(label="Video")
+                vbutton_transcribe = gr.Button("Transcribe", show_progress=True, scroll_to_output=True)
+            with gr.Tab("Audio", id=3):
+                asz = gr.Dropdown(label="Model Size", choices=wispher_models , value='base')
+                ainput_nos = gr.Number(label="Number of Speakers", placeholder="2")
+                ainput_sn = gr.Textbox(label="Name of the Speakers (ordered by the time they speak and separated by comma)", placeholder="If Speaker 1 is first to speak followed by Speaker 2 then -> Speaker 1, Speaker 2")
+                ainput = gr.Audio(label="Audio", type="filepath")
+                abutton_transcribe = gr.Button("Transcribe", show_progress=True, scroll_to_output=True)
+        with gr.Column():
+            with gr.Tab("Text"):
+                output_textbox = gr.Textbox(label="Transcribed Text", lines=15)
+            with gr.Tab("JSON"):
+                output_json = gr.JSON(label="Transcribed JSON")
+    ybutton_transcribe.click(
+                fn=YoutubeTranscribe,
+                inputs=[yinput_nos,yinput_sn,yinput, ysz],
+                outputs=[output_textbox,output_json]
+            )
+    abutton_transcribe.click(
+                fn=AudioTranscribe,
+                inputs=[ainput_nos,ainput_sn,ainput, asz],
+                outputs=[output_textbox,output_json]
+            )
+    vbutton_transcribe.click(
+                fn=VideoTranscribe,
+                inputs=[vinput_nos,vinput_sn,vinput, vsz],
+                outputs=[output_textbox,output_json]
+            )
+yav_ui.launch(debug=True)

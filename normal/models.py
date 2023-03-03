@@ -43,12 +43,8 @@ if device !=0:
 
 print("Loading Tokenizer for ASR Speech-to-Text Model...\n" + "*" * 100)
 # tokenizer = AutoTokenizer.from_pretrained(model_name, language=language, task=task)
-<<<<<<< HEAD
 # tokenizer = AutoTokenizer.from_pretrained(model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name,  use_fast=False)
-=======
-tokenizer = AutoTokenizer.from_pretrained(model_name)
->>>>>>> 245deb080989f91ba1557777fb2f2defae1c8b1e
 # tokenizer(['�', '�্র'],add_prefix_space=True, add_special_tokens=False).input_ids
 
 print("Loading Feature Extractor for ASR Speech-to-Text Model...\n" + "*" * 100)

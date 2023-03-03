@@ -1,7 +1,8 @@
 import os
 
 abs_path = os.path.abspath('.')
-base_dir = os.path.dirname(os.path.dirname(abs_path))
+#base_dir = os.path.dirname(os.path.dirname(abs_path))
+base_dir = os.path.dirname(abs_path)
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
 
 import datetime
@@ -9,7 +10,8 @@ import sys
 from transformers import pipeline
 from transformers.pipelines.audio_utils import ffmpeg_microphone_live
 
-model_name = "shahruk10/wav2vec2-xls-r-300m-bengali-commonvoice"
+# model_name = "shahruk10/wav2vec2-xls-r-300m-bengali-commonvoice"
+model_name = "Rakib/whisper-small-bn-all"
 
 pipe = pipeline("automatic-speech-recognition", model=model_name, device=0)
 sampling_rate = pipe.feature_extractor.sampling_rate

@@ -86,7 +86,7 @@ asr = pipeline(
     ## The stride_length on one side is 1/6th of the chunk_length_s if stride_length no provided
     stride_length_s=(5, 5),
     # stride_length_s=[6,0],
-    batch_size=16,
+    batch_size=1,
     ignore_warning=True,
     ## force whisper to generate timestamps so that the chunking and stitching can be accurate
     # return_timestamps=True, 

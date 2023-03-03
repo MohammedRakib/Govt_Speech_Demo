@@ -104,7 +104,7 @@ mf_transcribe = gr.Interface(
         gr.Audio(source="upload", type="filepath", label="Upload File"),
     ],
     outputs="text",
-    title="Whisper Bangla Demo: Transcribe Audio",
+    title="Wav2Vec2 Bangla Demo: Transcribe Audio",
     description=(
         "Transcribe long-form microphone or audio inputs in BANGLA with the click of a button!"
     ),
@@ -115,7 +115,7 @@ yt_transcribe = gr.Interface(
     fn=yt_transcribe,
     inputs=[gr.Textbox(lines=1, placeholder="Paste the URL to a Bangla language YouTube video here", label="YouTube URL")],
     outputs=["html", "text"],
-    title="Whisper Bangla Demo: Transcribe YouTube",
+    title="Wav2Vec2 Bangla Demo: Transcribe YouTube",
     description=(
         "Transcribe long-form YouTube videos in BANGLA with the click of a button!"
     ),

@@ -26,9 +26,9 @@ task = "transcribe"  # transcribe or translate
 ## bangla
 # model_name = 'Rakib/whisper-tiny-bn' 
 # model_name = 'anuragshas/whisper-small-bn' 
-# model_name = 'anuragshas/whisper-large-v2-bn
-# model_name = 'Rakib/whisper-small-bn'  
-model_name = 'Rakib/whisper-small-bn-all'  
+# model_name = 'anuragshas/whisper-large-v2-bn'
+# model_name = "Rakib/whisper-small-bn"
+model_name = "Rakib/whisper-small-bn-all"
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
@@ -44,6 +44,7 @@ if device !=0:
 print("Loading Tokenizer for ASR Speech-to-Text Model...\n" + "*" * 100)
 # tokenizer = AutoTokenizer.from_pretrained(model_name, language=language, task=task)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+# tokenizer(['�', '�্র'],add_prefix_space=True, add_special_tokens=False).input_ids
 
 print("Loading Feature Extractor for ASR Speech-to-Text Model...\n" + "*" * 100)
 feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
@@ -82,23 +83,21 @@ asr = pipeline(
     # config=config, #no effect see: https://github.com/huggingface/transformers/blob/main/src/transformers/pipelines/automatic_speech_recognition.py
     device=device,  # for gpu 1 for cpu -1
     ## chunk files longer than 30s into shorted samples
-    # chunk_length_s=30, 
     chunk_length_s=30, 
     ## the amount of overlap (in secs) to be discarded while stitching the inferenced chunks
     ## stride_length_s is a tuple of the left and right stride(overlap) length.
     ## With only 1 number, both sides get the same stride, by default
     ## The stride_length on one side is 1/6th of the chunk_length_s if stride_length no provided
-    # stride_length_s=(2, 2),
-    stride_length_s=[6,0],
-    batch_size=,
-    ignore_warning=True,
+    stride_length_s=[8, 8],
+    # stride_length_s=[6,0],
+    batch_size=16,
+    # ignore_warning=True,
     ## force whisper to generate timestamps so that the chunking and stitching can be accurate
-    # return_timestamps=True, 
+    #return_timestamps=True, 
+    
     generate_kwargs = {'language':language, 
                        'task':task, 
-                    #    'repetition_penalty':2.0,
                        'repetition_penalty':1.2,
-                    #    'num_beams':1,
                        'num_beams':2,
                        'max_new_tokens':448,
                        'early_stopping':True,

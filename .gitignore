@@ -2,10 +2,12 @@
 /models_cache/
 *.wav
 *.mp3
+*.mp4
 /training/runs
 *checkpoint-*
 /training/best_model
 *.json
+*.pt
 merges.txt
 
 

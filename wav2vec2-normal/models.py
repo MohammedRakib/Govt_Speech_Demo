@@ -40,16 +40,16 @@ feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
 print("Loading Config for ASR Speech-to-Text Model...\n" + "*" * 100)
 config = AutoConfig.from_pretrained(model_name)
 
-print("Loading Decoder for ASR Speech-to-Text Model...\n" + "*" * 100)
-decoder = BeamSearchDecoderCTC.load_from_hf_hub(model_name)
+# print("Loading Decoder for ASR Speech-to-Text Model...\n" + "*" * 100)
+# decoder = BeamSearchDecoderCTC.load_from_hf_hub(model_name)
 # decoder = BeamSearchDecoderCTC.load_from_dir(model_name)
 
-print("Loading Processor for ASR Speech-to-Text Model...\n" + "*" * 100)
-processor = Wav2Vec2ProcessorWithLM(
-    feature_extractor=feature_extractor,
-    tokenizer=tokenizer,
-    decoder=decoder
-)
+# print("Loading Processor for ASR Speech-to-Text Model...\n" + "*" * 100)
+# processor = Wav2Vec2ProcessorWithLM(
+#     feature_extractor=feature_extractor,
+#     tokenizer=tokenizer,
+#     decoder=decoder
+# )
 
 print("Loading Wav2Vec2 ASR Speech-to-Text Model...\n" + "*" * 100)
 model = AutoModelForCTC.from_pretrained(model_name)
@@ -91,6 +91,13 @@ asr = pipeline(
     ## force whisper to generate timestamps so that the chunking and stitching can be accurate
     # return_timestamps=True, 
     # decoder_kwargs={"max_new_tokens": 448},  ##default is 448
+    generate_kwargs = { 'repetition_penalty':1.0,
+                        'num_beams':4,
+                        'max_new_tokens':448,
+                        'early_stopping':True,
+                        # [16867]: �, [16867, 156, 100, 235, 156, 12811]: �্র
+                        'bad_words_ids':[[16867], [16867, 156, 100, 235, 156, 12811]]
+                    }
 )
 
     

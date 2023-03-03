@@ -113,8 +113,27 @@ yt_transcribe = gr.Interface(
     ),
     allow_flagging="never",
 )
+def transcribe2(audio, state=""):
+    text = "text"
+    state += text + " "
+    return state, state
 
-demo = gr.TabbedInterface([mf_transcribe, yt_transcribe], ["Transcribe Bangla Audio", "Transcribe Bangla YouTube Video"])
+# Set the starting state to an empty string
+
+real_transcribe = gr.Interface(
+    fn=transcribe2, 
+    inputs=[
+        gr.Audio(source="microphone", type="filepath", streaming=True), 
+        "state" 
+    ],
+    outputs=[
+        "textbox",
+        "state"
+    ],
+    live=True)
+
+
+demo = gr.TabbedInterface([mf_transcribe, yt_transcribe,real_transcribe], ["Transcribe Bangla Audio", "Transcribe Bangla YouTube Video","real time"])
 
 
 if __name__ == "__main__":

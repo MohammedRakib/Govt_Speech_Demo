@@ -96,7 +96,7 @@ mf_transcribe = gr.Interface(
         gr.Audio(source="upload", type="filepath", label="Upload File"),
     ],
     outputs="text",
-    title="Whisper Bangla Demo: Transcribe Audio",
+    title="Bangla Demo: Transcribe Audio",
     description=(
         "Transcribe long-form microphone or audio inputs in BANGLA with the click of a button!"
     ),
@@ -107,33 +107,34 @@ yt_transcribe = gr.Interface(
     fn=yt_transcribe,
     inputs=[gr.Textbox(lines=1, placeholder="Paste the URL to a Bangla language YouTube video here", label="YouTube URL")],
     outputs=["html", "text"],
-    title="Whisper Bangla Demo: Transcribe YouTube",
+    title="Bangla Demo: Transcribe YouTube",
     description=(
         "Transcribe long-form YouTube videos in BANGLA with the click of a button!"
     ),
     allow_flagging="never",
 )
-def transcribe2(audio, state=""):
-    text = "text"
-    state += text + " "
-    return state, state
+# def transcribe2(audio, state=""):
+#     text = "text"
+#     state += text + " "
+#     return state, state
 
 # Set the starting state to an empty string
 
-real_transcribe = gr.Interface(
-    fn=transcribe2, 
-    inputs=[
-        gr.Audio(source="microphone", type="filepath", streaming=True), 
-        "state" 
-    ],
-    outputs=[
-        "textbox",
-        "state"
-    ],
-    live=True)
+# real_transcribe = gr.Interface(
+#     fn=transcribe2, 
+#     inputs=[
+#         gr.Audio(source="microphone", type="filepath", streaming=True), 
+#         "state" 
+#     ],
+#     outputs=[
+#         "textbox",
+#         "state"
+#     ],
+#     live=True)
 
 
-demo = gr.TabbedInterface([mf_transcribe, yt_transcribe,real_transcribe], ["Transcribe Bangla Audio", "Transcribe Bangla YouTube Video","real time"])
+# demo = gr.TabbedInterface([mf_transcribe, yt_transcribe,real_transcribe], ["Transcribe Bangla Audio", "Transcribe Bangla YouTube Video","real time"])
+demo = gr.TabbedInterface([mf_transcribe, yt_transcribe], ["Transcribe Bangla Audio", "Transcribe Bangla YouTube Video"])
 
 
 if __name__ == "__main__":

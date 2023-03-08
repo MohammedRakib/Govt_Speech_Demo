@@ -1,4 +1,5 @@
 /env/
+/whisper-env/
 /models_cache/
 *.wav
 *.mp3
@@ -9,7 +10,8 @@
 *.json
 *.pt
 merges.txt
-
+/cv12/*
+!/cv12/preprocess.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

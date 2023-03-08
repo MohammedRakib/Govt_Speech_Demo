@@ -22,8 +22,8 @@ import os
 import torch
 
 abs_path = os.path.abspath('.')
-base_dir = os.path.dirname(os.path.dirname(abs_path))
-# base_dir = os.path.dirname(abs_path)
+# base_dir = os.path.dirname(os.path.dirname(abs_path))
+base_dir = os.path.dirname(abs_path)
 
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
 os.environ['TRANSFORMERS_OFFLINE'] = '0'
@@ -48,7 +48,7 @@ print(f"\n\n Loading {model_name} for {language} to {task}...this might take a w
 output_dir = "./" 
 overwrite_output_dir = True
 # max_steps = 30000 
-max_steps = 10 
+max_steps = 5
 # per_device_train_batch_size = 4 
 per_device_train_batch_size = 1 
 # per_device_eval_batch_size = 32 
@@ -281,6 +281,23 @@ my_dataset["test"] = my_dataset["test"].filter(
 my_dataset["test"] = my_dataset["test"].filter(
     filter_labels,
     input_columns=["labels_length"],
+)
+
+import re
+def filter_transcripts(transcript):
+    """Filter transcripts with empty strings and samples containing English characters & numbers"""
+    pattern = r'^.*[a-zA-Z0-9]+.*$'
+    match = re.match(pattern, transcript)
+    return len(transcript.split(" ")) > 1 and not bool(match)
+
+my_dataset["train"] = my_dataset["train"].filter(
+    filter_transcripts,
+    input_columns=["sentence"],
+)
+
+my_dataset["test"] = my_dataset["test"].filter(
+    filter_transcripts,
+    input_columns=["sentence"],
 )
 
 print("\n\n AFTER FILTERING, final train and validation sets are: ")

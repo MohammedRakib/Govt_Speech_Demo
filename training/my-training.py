@@ -95,12 +95,34 @@ openslr = DatasetDict()
 ## commonvoice_11.0 + google_fleurs + openslr53
 my_dataset = DatasetDict()
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn", split="train+validation", cache_dir=os.path.join(base_dir, 'datasets_cache'))
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn", split="train+validation+other", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 google_fleurs["train"] = load_dataset("google/fleurs", "bn_in", split="train+validation", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 openslr = load_dataset("openslr", "SLR53", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 google_fleurs["test"] = load_dataset("google/fleurs", "bn_in", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
+
+skipFiles = open("corrupt_files.txt").read().splitlines()
+skipFiles = skipFiles[3:]
+length = len(skipFiles)
+first = skipFiles[0]
+last = skipFiles[-1]
+print(f"\n No. of corrupt files: {length}, First: {first}, Last {last}\n")
+
+print("\n Finding indexes of corrupt files... \n")
+from tqdm import tqdm
+count=0
+error_index = []
+for i in tqdm(range(len(common_voice["train"]))):
+    path = common_voice["train"][i]["path"].split("/")[-1].split(".")[0]
+    if path in skipFiles:
+        # print(path)
+        count+=1
+        error_index.append(i)
+print(f"\n Total Corrupt Files: {count} \n")
+
+print("\n Removing corrupt files from the Common Voice dataset...\n")
+common_voice["train"] = common_voice["train"].filter(lambda example, idx: idx not in error_index, with_indices=True)
 
 print("\n\n So, the datasets to be trained are: \n\n")
 print("\n Common Voice 11.0 - Bangla\n")

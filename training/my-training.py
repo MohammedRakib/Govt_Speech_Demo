@@ -21,6 +21,9 @@
 #   cp /home/mamun/asr_training/Govt_Speech_Demo/training/my-training.py .
 
 
+#For more details: https://github.com/huggingface/community-events/tree/main/whisper-fine-tuning-event
+
+
 
 ## 1. Setting Up Environment Variables & Devices
 import os

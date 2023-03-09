@@ -57,12 +57,12 @@ output_dir = "./"
 overwrite_output_dir = True
 # max_steps = 40000 
 max_steps = 5
-# per_device_train_batch_size = 4 
-per_device_train_batch_size = 1 
-# per_device_eval_batch_size = 32 
-per_device_eval_batch_size = 1 
-# gradient_accumulation_steps = 8 
-gradient_accumulation_steps = 1 
+per_device_train_batch_size = 4 
+# per_device_train_batch_size = 1 
+per_device_eval_batch_size = 32 
+# per_device_eval_batch_size = 1 
+gradient_accumulation_steps = 8 
+# gradient_accumulation_steps = 1 
 dataloader_num_workers = 4
 gradient_checkpointing = False 
 evaluation_strategy ="steps" 
@@ -82,10 +82,10 @@ weight_decay = 0.01
 load_best_model_at_end = True 
 metric_for_best_model = "wer" 
 greater_is_better = False 
-# bf16 = True 
-bf16 = False
-# tf32 = True 
-tf32 = False
+bf16 = True 
+# bf16 = False
+tf32 = True 
+# tf32 = False
 generation_max_length = 448
 report_to = ["tensorboard"] 
 predict_with_generate = True
@@ -113,6 +113,8 @@ openslr = load_dataset("openslr", "SLR53", cache_dir=os.path.join(base_dir, 'dat
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 google_fleurs["test"] = load_dataset("google/fleurs", "bn_in", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 
+
+## REMOVE Corrupt Files
 # skipFiles = open("corrupt_files.txt").read().splitlines()
 # skipFiles = skipFiles[3:]
 # length = len(skipFiles)
@@ -419,7 +421,8 @@ data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 ## 13. Define Evaluation Metrics
 import evaluate
 
-metric = evaluate.load("wer", cache_dir=os.path.join(base_dir, "metrics_cache"))
+wer_metric = evaluate.load("wer", cache_dir=os.path.join(base_dir, "metrics_cache"))
+cer_metric = evaluate.load("cer", cache_dir=os.path.join(base_dir, "metrics_cache"))
 
 do_normalize_eval = True
 
@@ -438,9 +441,10 @@ def compute_metrics(pred):
         pred_str = [normalizer(pred) for pred in pred_str]
         label_str = [normalizer(label) for label in label_str]
 
-    wer = 100 * metric.compute(predictions=pred_str, references=label_str)
+    wer = 100 * wer_metric.compute(predictions=pred_str, references=label_str)
+    cer = 100 * cer_metric.compute(predictions=pred_str, references=label_str)
 
-    return {"wer": wer}
+    return {"cer": cer, "wer": wer}
 
 
 ## 14. Load a Pre-Trained Checkpoint

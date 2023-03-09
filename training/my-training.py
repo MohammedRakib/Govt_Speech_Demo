@@ -55,7 +55,7 @@ print(f"\n\n Loading {model_name} for {language} to {task}...this might take a w
 ## 3. Setting Up Training Args
 output_dir = "./" 
 overwrite_output_dir = True
-# max_steps = 30000 
+# max_steps = 40000 
 max_steps = 5
 # per_device_train_batch_size = 4 
 per_device_train_batch_size = 1 
@@ -63,6 +63,7 @@ per_device_train_batch_size = 1
 per_device_eval_batch_size = 1 
 # gradient_accumulation_steps = 8 
 gradient_accumulation_steps = 1 
+dataloader_num_workers = 4
 gradient_checkpointing = False 
 evaluation_strategy ="steps" 
 eval_steps = 5
@@ -72,7 +73,8 @@ save_strategy = "steps"
 save_steps = 5
 save_total_limit = 5 
 learning_rate = 1e-5 
-# warmup_steps = 3000 
+lr_scheduler_type = "linear" # "constant", "constant_with_warmup", "cosine", "cosine_with_restarts", "linear", "polynomial", "inverse_sqrt"
+# warmup_steps = 4000 
 warmup_steps = 1 
 # logging_steps = 25
 logging_steps = 1
@@ -90,6 +92,7 @@ predict_with_generate = True
 # push_to_hub = True
 push_to_hub = False
 freeze_feature_encoder = False 
+early_stopping_patience = 10
 
 
 ## 4. Load Datasets
@@ -468,12 +471,14 @@ training_args = Seq2SeqTrainingArguments(
     per_device_eval_batch_size=per_device_eval_batch_size,
     gradient_accumulation_steps=gradient_accumulation_steps,
     gradient_checkpointing=gradient_checkpointing,
+    dataloader_num_workers=dataloader_num_workers,
     evaluation_strategy=evaluation_strategy,
     eval_steps=eval_steps,
     save_strategy=save_strategy,
     save_steps=save_steps,
     save_total_limit=save_total_limit,
     learning_rate=learning_rate,
+    lr_scheduler_type=lr_scheduler_type,
     warmup_steps=warmup_steps,
     logging_steps=logging_steps,
     weight_decay=weight_decay,
@@ -489,6 +494,7 @@ training_args = Seq2SeqTrainingArguments(
 )
 
 from transformers import Seq2SeqTrainer
+import transformers as tf
 
 trainer = Seq2SeqTrainer(
     args=training_args,
@@ -498,6 +504,7 @@ trainer = Seq2SeqTrainer(
     data_collator=data_collator,
     compute_metrics=compute_metrics,
     tokenizer=processor.feature_extractor,
+    callbacks=[tf.EarlyStoppingCallback(early_stopping_patience=early_stopping_patience)],
 )
 
 ## We'll save the processor object once before starting training. Since the processor is not trainable, it won't change over the course of training.

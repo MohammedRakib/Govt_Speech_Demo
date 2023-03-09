@@ -27,6 +27,7 @@
 
 ## 1. Setting Up Environment Variables & Devices
 import os
+import comm
 import torch
 
 abs_path = os.path.abspath('.')
@@ -76,8 +77,8 @@ learning_rate = 1e-5
 lr_scheduler_type = "linear" # "constant", "constant_with_warmup", "cosine", "cosine_with_restarts", "linear", "polynomial", "inverse_sqrt"
 # warmup_steps = 4000 
 warmup_steps = 1 
-# logging_steps = 25
-logging_steps = 1
+logging_steps = 25
+# logging_steps = 1
 weight_decay = 0.01 
 load_best_model_at_end = True 
 metric_for_best_model = "wer" 
@@ -114,39 +115,6 @@ common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn"
 google_fleurs["test"] = load_dataset("google/fleurs", "bn_in", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 
 
-## REMOVE Corrupt Files
-# skipFiles = open("corrupt_files.txt").read().splitlines()
-# skipFiles = skipFiles[3:]
-# length = len(skipFiles)
-# first = skipFiles[0]
-# last = skipFiles[-1]
-# print(f"\n No. of corrupt files: {length}, First: {first}, Last {last}\n")
-
-# print("\n Finding indexes of corrupt files... \n")
-# from tqdm import tqdm
-# count=0
-# error_index = []
-# for i in tqdm(range(len(common_voice["train"]))):
-#     path = common_voice["train"][i]["path"].split("/")[-1].split(".")[0]
-#     if path in skipFiles:
-#         # print(path)
-#         count+=1
-#         error_index.append(i)
-# print(f"\n Total Corrupt Files: {count} \n")
-
-# print("\n Removing corrupt files from the Common Voice dataset...\n")
-# common_voice["train"] = common_voice["train"].filter(lambda example, idx: idx not in error_index, with_indices=True)
-
-print("\n\n So, the datasets to be trained are: \n\n")
-print("\n Common Voice 11.0 - Bangla\n")
-print(common_voice)
-print("\n Google Fleurs - Bangla \n")
-print(google_fleurs)
-print("\n OpenSLR-53 - Bangla \n")
-print(openslr)
-print("\n")
-
-
 ## 5. Small Subset for Testing
 common_voice['train']  = common_voice['train'].select(range(50))
 common_voice['test']  = common_voice['test'].select(range(50))
@@ -159,6 +127,50 @@ print(common_voice)
 print(google_fleurs)
 print(openslr)
 print("\n")
+
+
+## Removing bad samples from common_voice based on upvotes and downvotes
+print("\n BEFORE Filtering by Upvotes (Common Voice): \n")
+print(common_voice["train"])
+# FILTERING!!! Will get 37k Data if >0 and will get 201k Data if >=0 out of 207k
+common_voice["train"] = common_voice["train"].filter(lambda x: (x["up_votes"] - x["down_votes"]) >= 0, num_proc=None)
+print("\n AFTER Filtering by Upvotes (Common Voice): \n")
+print(common_voice["train"])
+
+
+## REMOVE Corrupt Files
+skipFiles = open("corrupt_files.txt").read().splitlines()
+skipFiles = skipFiles[3:]
+length = len(skipFiles)
+first = skipFiles[0]
+last = skipFiles[-1]
+print(f"\n No. of corrupt files: {length}, First: {first}, Last {last}\n")
+
+print("\n Finding indexes of corrupt files... \n")
+from tqdm import tqdm
+count=0
+error_index = []
+for i in tqdm(range(len(common_voice["train"]))):
+    path = common_voice["train"][i]["path"].split("/")[-1].split(".")[0]
+    if path in skipFiles:
+        # print(path)
+        count+=1
+        error_index.append(i)
+print(f"\n Total Corrupt Files: {count} \n")
+
+print("\n Removing corrupt files from the Common Voice dataset...\n")
+common_voice["train"] = common_voice["train"].filter(lambda example, idx: idx not in error_index, with_indices=True)
+
+
+print("\n\n So, the datasets to be trained are: \n\n")
+print("\n Common Voice 11.0 - Bangla\n")
+print(common_voice)
+print("\n Google Fleurs - Bangla \n")
+print(google_fleurs)
+print("\n OpenSLR-53 - Bangla \n")
+print(openslr)
+print("\n")
+
 
 
 ## 6. Merge Datasets
@@ -232,6 +244,8 @@ print("\n\n Preprocessing Datasets...this might take a while..\n\n")
 
 from transformers.models.whisper.english_normalizer import BasicTextNormalizer
 from bnunicodenormalizer import Normalizer
+import unicodedata
+import re
 
 do_lower_case = False
 do_remove_punctuation = False
@@ -239,6 +253,22 @@ do_bangla_unicode_normalization = True
 
 normalizer = BasicTextNormalizer()
 bangla_normalizer = Normalizer(allow_english=True)
+
+
+def removeOptionalZW(text):
+    """
+    Removes all optional occurrences of ZWNJ or ZWJ from Bangla text.
+    """
+    # Regex for matching zero witdh joiner variations.
+    STANDARDIZE_ZW = re.compile(r'(?<=\u09b0)[\u200c\u200d]+(?=\u09cd\u09af)')
+
+    # Regex for removing standardized zero width joiner, except in edge cases.
+    DELETE_ZW = re.compile(r'(?<!\u09b0)[\u200c\u200d](?!\u09cd\u09af)')
+    
+    text = STANDARDIZE_ZW.sub('\u200D', text)
+    text = DELETE_ZW.sub('', text)
+    return text
+
 
 def prepare_dataset(batch):
     # load and (possibly) resample audio data to 16kHz
@@ -259,6 +289,10 @@ def prepare_dataset(batch):
     if do_bangla_unicode_normalization:
         _words = [bangla_normalizer(word)['normalized'] for word in transcription.split()]
         transcription = " ".join([word for word in _words if word is not None])
+        transcription = transcription.replace("\u2047", "-")
+        transcription = transcription.replace(u"\u098c", u"\u09ef")
+        transcription = unicodedata.normalize("NFC", transcription)
+        transcription = removeOptionalZW(transcription)
     
     # encode target text to label ids
     batch["labels"] = processor.tokenizer(transcription).input_ids

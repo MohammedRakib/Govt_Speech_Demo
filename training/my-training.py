@@ -1,3 +1,12 @@
+## Dependencies (run in the venv before running this script)
+# pip install git+https://github.com/huggingface/datasets git+https://github.com/huggingface/transformers 
+# pip install huggingface_hub ipywidgets librosa evaluate>=0.3.0 jiwer bnunicodenormalizer
+# sudo add-apt-repository -y ppa:jonathonf/ffmpeg-4
+# sudo apt update
+# sudo apt install -y ffmpeg
+#sudo apt-get install git-lfs
+
+
 ## Run the following commands separately before running the py version of this notebook to connect to HuggningFace Hub!
 #   git config --global credential.helper store
 #   huggingface-cli login
@@ -11,10 +20,6 @@
 #   cd <repo_name/model_name>
 #   cp /home/mamun/asr_training/Govt_Speech_Demo/training/my-training.py .
 
-
-## Dependencies (run in the venv before running this script)
-# pip install git+https://github.com/huggingface/datasets git+https://github.com/huggingface/transformers 
-# pip install huggingface_hub ipywidgets librosa evaluate>=0.3.0 jiwer bnunicodenormalizer
 
 
 ## 1. Setting Up Environment Variables & Devices

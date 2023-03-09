@@ -102,27 +102,27 @@ openslr = load_dataset("openslr", "SLR53", cache_dir=os.path.join(base_dir, 'dat
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "bn", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 google_fleurs["test"] = load_dataset("google/fleurs", "bn_in", split="test", cache_dir=os.path.join(base_dir, 'datasets_cache'))
 
-skipFiles = open("corrupt_files.txt").read().splitlines()
-skipFiles = skipFiles[3:]
-length = len(skipFiles)
-first = skipFiles[0]
-last = skipFiles[-1]
-print(f"\n No. of corrupt files: {length}, First: {first}, Last {last}\n")
+# skipFiles = open("corrupt_files.txt").read().splitlines()
+# skipFiles = skipFiles[3:]
+# length = len(skipFiles)
+# first = skipFiles[0]
+# last = skipFiles[-1]
+# print(f"\n No. of corrupt files: {length}, First: {first}, Last {last}\n")
 
-print("\n Finding indexes of corrupt files... \n")
-from tqdm import tqdm
-count=0
-error_index = []
-for i in tqdm(range(len(common_voice["train"]))):
-    path = common_voice["train"][i]["path"].split("/")[-1].split(".")[0]
-    if path in skipFiles:
-        # print(path)
-        count+=1
-        error_index.append(i)
-print(f"\n Total Corrupt Files: {count} \n")
+# print("\n Finding indexes of corrupt files... \n")
+# from tqdm import tqdm
+# count=0
+# error_index = []
+# for i in tqdm(range(len(common_voice["train"]))):
+#     path = common_voice["train"][i]["path"].split("/")[-1].split(".")[0]
+#     if path in skipFiles:
+#         # print(path)
+#         count+=1
+#         error_index.append(i)
+# print(f"\n Total Corrupt Files: {count} \n")
 
-print("\n Removing corrupt files from the Common Voice dataset...\n")
-common_voice["train"] = common_voice["train"].filter(lambda example, idx: idx not in error_index, with_indices=True)
+# print("\n Removing corrupt files from the Common Voice dataset...\n")
+# common_voice["train"] = common_voice["train"].filter(lambda example, idx: idx not in error_index, with_indices=True)
 
 print("\n\n So, the datasets to be trained are: \n\n")
 print("\n Common Voice 11.0 - Bangla\n")
@@ -171,6 +171,19 @@ google_fleurs = google_fleurs.remove_columns(
 openslr = openslr.remove_columns(
     set(openslr['train'].features.keys()) - {"audio", "sentence"}
 )
+
+
+
+## check if all audio are in float32 dtype or not.
+## a fix is: https://github.com/huggingface/datasets/issues/5345
+print("\n Checking all audio dtype is float32 or not... \n")
+print(f'Common Voice Train: {common_voice["train"][0]["audio"]["array"].dtype}')
+print(f'Common Voice Test: {common_voice["test"][0]["audio"]["array"].dtype}')
+print(f'Google Fleurs Train: {google_fleurs["train"][0]["audio"]["array"].dtype}')
+print(f'Google Fleurs Test: {google_fleurs["test"][0]["audio"]["array"].dtype}')
+print(f'OpenSlR: {openslr["train"][0]["audio"]["array"].dtype}')
+print("\n")
+
 
 ## merge the three datasets
 my_dataset['train'] = concatenate_datasets([common_voice['train'], google_fleurs['train'], openslr['train']]) #for linux
@@ -248,7 +261,7 @@ def prepare_dataset(batch):
 
 ## This,
 my_dataset = my_dataset.map(prepare_dataset, 
-                            num_proc=4, 
+                            num_proc=1, # if num_proc>1, then mapping might get stuck. use num_proc=1 in that case.
                             load_from_cache_file=True, 
                             cache_file_names={
                                 "train" : os.path.join(base_dir, 'datasets_cache', 'preprocessed_train_cache.arrow'),
@@ -258,14 +271,14 @@ my_dataset = my_dataset.map(prepare_dataset,
 ## OR this,
 # my_dataset["train"] = my_dataset["train"].map(
 #                             prepare_dataset, 
-#                             num_proc=4, 
+#                             num_proc=4, # if num_proc>1, then mapping might get stuck. use num_proc=1 in that case.
 #                             load_from_cache_file=True, 
 #                             cache_file_name=os.path.join(base_dir, 'datasets_cache', 'preprocessed_train_cache.arrow')
 #                             )
 
 # my_dataset["test"] = my_dataset["test"].map(
 #                             prepare_dataset, 
-#                             num_proc=4, 
+#                             num_proc=4, # if num_proc>1, then mapping might get stuck. use num_proc=1 in that case.
 #                             load_from_cache_file=True, 
 #                             cache_file_name=os.path.join(base_dir, 'datasets_cache', 'preprocessed_test_cache.arrow')
 #                             )
@@ -279,6 +292,16 @@ def filter_inputs(input_length):
     """Filter inputs with zero input length or longer than 30s"""
     return 0 < input_length < max_input_length
 
+my_dataset["train"] = my_dataset["train"].filter(
+    filter_inputs,
+    input_columns=["input_length"],
+)
+my_dataset["test"] = my_dataset["test"].filter(
+    filter_inputs,
+    input_columns=["input_length"],
+)
+
+
 max_label_length = 448 #(Check by doing model.config.max_length. Model not yet initialized, so manually written)
 
 def filter_labels(labels_length):
@@ -286,24 +309,14 @@ def filter_labels(labels_length):
     return labels_length < max_label_length
 
 my_dataset["train"] = my_dataset["train"].filter(
-    filter_inputs,
-    input_columns=["input_length"],
-)
-
-my_dataset["train"] = my_dataset["train"].filter(
     filter_labels,
     input_columns=["labels_length"],
 )
-
-my_dataset["test"] = my_dataset["test"].filter(
-    filter_inputs,
-    input_columns=["input_length"],
-)
-
 my_dataset["test"] = my_dataset["test"].filter(
     filter_labels,
     input_columns=["labels_length"],
 )
+
 
 import re
 def filter_transcripts(transcript):
@@ -316,7 +329,6 @@ my_dataset["train"] = my_dataset["train"].filter(
     filter_transcripts,
     input_columns=["sentence"],
 )
-
 my_dataset["test"] = my_dataset["test"].filter(
     filter_transcripts,
     input_columns=["sentence"],

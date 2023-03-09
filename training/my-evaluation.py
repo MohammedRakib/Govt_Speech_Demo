@@ -1,8 +1,11 @@
 import argparse
 import os
+from regex import R
 
 abs_path = os.path.abspath('.')
-base_dir = os.path.dirname(os.path.dirname(abs_path))
+# base_dir = os.path.dirname(os.path.dirname(abs_path))
+base_dir = os.path.dirname(abs_path)
+
 
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(base_dir, 'models_cache')
 os.environ['TRANSFORMERS_OFFLINE'] = '0'
@@ -14,8 +17,10 @@ from transformers.models.whisper.english_normalizer import BasicTextNormalizer
 from datasets import load_dataset, Audio
 from bnunicodenormalizer import Normalizer
 import evaluate
+import unicodedata
 
 wer_metric = evaluate.load("wer", cache_dir=os.path.join(base_dir, "metrics_cache"))
+cer_metric = evaluate.load("cer", cache_dir=os.path.join(base_dir, "metrics_cache"))
 
 
 def is_target_text_in_range(ref):
@@ -51,10 +56,27 @@ def normalise(batch):
     batch["norm_text"] = whisper_norm(get_text(batch))
     return batch
 
+def removeOptionalZW(text):
+    """
+    Removes all optional occurrences of ZWNJ or ZWJ from Bangla text.
+    """
+    # Regex for matching zero witdh joiner variations.
+    STANDARDIZE_ZW = re.compile(r'(?<=\u09b0)[\u200c\u200d]+(?=\u09cd\u09af)')
+
+    # Regex for removing standardized zero width joiner, except in edge cases.
+    DELETE_ZW = re.compile(r'(?<!\u09b0)[\u200c\u200d](?!\u09cd\u09af)')
+    
+    text = STANDARDIZE_ZW.sub('\u200D', text)
+    text = DELETE_ZW.sub('', text)
+    return text
 
 def bn_unicode_normalise(batch):
     _words = [bangla_normalizer(word)['normalized'] for word in get_text(batch).split()]
     normalized_text = " ".join([word for word in _words if word is not None])
+    normalized_text = normalized_text.replace("\u2047", "-")
+    normalized_text = normalized_text.replace(u"\u098c", u"\u09ef")
+    normalized_text = unicodedata.normalize("NFC", normalized_text)
+    normalized_text = removeOptionalZW(normalized_text)
     batch["norm_text"] = whisper_norm(normalized_text)
     return batch
 
@@ -108,8 +130,13 @@ def main(args):
 
     wer = wer_metric.compute(references=references, predictions=predictions)
     wer = round(100 * wer, 2)
+    
+    cer = cer_metric.compute(references=references, predictions=predictions)
+    cer = round(100 * cer, 2)
 
     print(f"\n\n WER: {wer} \n\n")
+    print(f"\n\n CER: {cer} \n\n")
+    
     evaluate.push_to_hub(
         model_id=args.model_id,
         metric_value=wer,
@@ -123,6 +150,21 @@ def main(args):
         task_name="Automatic Speech Recognition",
         overwrite=True
     )
+    
+    evaluate.push_to_hub(
+        model_id=args.model_id,
+        metric_value=cer,
+        metric_type="cer",
+        metric_name="CER",
+        dataset_name=args.dataset,
+        dataset_type=args.dataset,
+        dataset_split=args.split,
+        dataset_config=args.config,
+        task_type="automatic-speech-recognition",
+        task_name="Automatic Speech Recognition",
+        overwrite=True
+    )
+        
 
 
 if __name__ == "__main__":

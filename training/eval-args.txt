@@ -1,3 +1,5 @@
+
+## Generates eval.sh for testing if script works
 echo 'python my-evaluation.py \
 	--model_id="openai/whisper-tiny" \
 	--dataset="google/fleurs" \
@@ -9,6 +11,44 @@ echo 'python my-evaluation.py \
 	--do_bangla_unicode_normalize="True" \
 	--device="0" \
 	--streaming="False"' >> eval.sh
+
+##  Evaluates on google/fleurs test set
+echo 'python my-evaluation.py \
+	--model_id="openai/whisper-small-bn-all-400" \
+	--dataset="google/fleurs" \
+	--config="bn_in" \
+	--language="bn" \
+	--split="test" \
+	--batch_size="16" \
+	--do_bangla_unicode_normalize="True" \
+	--device="0" \
+	--streaming="False"' >> eval.sh
+	
+## Evaluates on common voice 11.0
+echo 'python my-evaluation.py \
+	--model_id="openai/whisper-small-bn-all-400" \
+	--dataset="mozilla-foundation/common_voice_11_0" \
+	--config="bn" \
+	--language="bn" \
+	--split="test" \
+	--batch_size="16" \
+	--do_bangla_unicode_normalize="True" \
+	--device="0" \
+	--streaming="False"' >> eval.sh
+	
+## Evaluates on openslr 53
+echo 'python my-evaluation.py \
+	--model_id="openai/whisper-small-bn-all-400" \
+	--dataset="openslr" \
+	--config="SLR53" \
+	--language="bn" \
+	--split="test" \
+	--batch_size="16" \
+	--do_bangla_unicode_normalize="True" \
+	--device="0" \
+	--streaming="False"' >> eval.sh
+
+
 
 
 #max_eval_samples MAX_EVAL_SAMPLES. Number of samples to be evaluated. Put a lower number e.g. 64 for testing this script.

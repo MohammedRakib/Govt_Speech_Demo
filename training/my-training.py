@@ -27,6 +27,7 @@
 
 ## 1. Setting Up Environment Variables & Devices
 import os
+from statistics import mode
 import comm
 import torch
 
@@ -62,7 +63,7 @@ per_device_train_batch_size = 4
 # per_device_train_batch_size = 1 
 per_device_eval_batch_size = 32 
 # per_device_eval_batch_size = 1 
-gradient_accumulation_steps = 8 
+gradient_accumulation_steps = 128 
 # gradient_accumulation_steps = 1 
 dataloader_num_workers = 4
 gradient_checkpointing = False 
@@ -74,12 +75,14 @@ save_strategy = "steps"
 save_steps = 5
 save_total_limit = 5 
 learning_rate = 1e-5 
-lr_scheduler_type = "linear" # "constant", "constant_with_warmup", "cosine", "cosine_with_restarts", "linear", "polynomial", "inverse_sqrt"
-# warmup_steps = 4000 
+lr_scheduler_type = "cosine" # "constant", "constant_with_warmup", "cosine", "cosine_with_restarts", "linear"(default), "polynomial", "inverse_sqrt"
+# warmup_steps = 15000 (1 epoch)
 warmup_steps = 1 
-logging_steps = 25
-# logging_steps = 1
-weight_decay = 0.01 
+# logging_steps = 25
+logging_steps = 1
+# weight_decay = 0.01
+weight_decay = 0 
+dropout = 0.1  # any value > 0.1 hurts performance. So, use values between 0.0 and 0.1
 load_best_model_at_end = True 
 metric_for_best_model = "wer" 
 greater_is_better = False 
@@ -94,6 +97,7 @@ predict_with_generate = True
 push_to_hub = False
 freeze_feature_encoder = False 
 early_stopping_patience = 10
+apply_spec_augment = True
 
 
 ## 4. Load Datasets
@@ -229,12 +233,12 @@ print("\n")
 
 
 ## 7. Prepare Feature Extractor, Tokenizer and Processor
-from transformers import WhisperFeatureExtractor, WhisperTokenizer, WhisperProcessor
+from transformers import WhisperFeatureExtractor, WhisperTokenizer, WhisperTokenizerFast, WhisperProcessor
 
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model_name)
 
-# tokenizer = WhisperTokenizer.from_pretrained(model_name, language=language, task=task, use_fast=True)
-tokenizer = WhisperTokenizer.from_pretrained(model_name, language=language, task=task)
+# tokenizer = WhisperTokenizer.from_pretrained(model_name, language=language, task=task)
+tokenizer = WhisperTokenizerFast.from_pretrained(model_name, language=language, task=task)
 
 processor = WhisperProcessor.from_pretrained(model_name, language=language, task=task)
 
@@ -275,10 +279,20 @@ def prepare_dataset(batch):
     audio = batch["audio"]
 
     # compute log-Mel input features from input audio array 
-    batch["input_features"] = processor.feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
+    inputs = processor.feature_extractor(
+        audio["array"], 
+        sampling_rate=audio["sampling_rate"], 
+        return_attention_mask=apply_spec_augment,
+        )
+    batch["input_features"] = inputs.input_features[0]
 
     # compute input length
     batch["input_length"] = len(batch["audio"])
+    
+    # if spec augmentation applied, get attention_mask to guide the mask along time axis
+    if apply_spec_augment:
+        batch["attention_mask"] = inputs.get("attention_mask")[0]
+    
     
     # optional pre-processing steps
     transcription = batch["sentence"]
@@ -425,6 +439,7 @@ from typing import Any, Dict, List, Union
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
     processor: Any
+    forward_attention_mask: bool
 
     def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
         # split inputs and labels since they have to be of different lengths and need different padding methods
@@ -432,6 +447,9 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         input_features = [{"input_features": feature["input_features"]} for feature in features]
         batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt")
 
+        if self.forward_attention_mask:
+            batch["attention_mask"] = torch.LongTensor([feature["attention_mask"] for feature in features])
+        
         # get the tokenized label sequences
         label_features = [{"input_ids": feature["labels"]} for feature in features]
         # pad the labels to max length
@@ -449,7 +467,10 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
         return batch
 
-data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
+
+
+data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor, forward_attention_mask=apply_spec_augment)
+
 
 
 ## 13. Define Evaluation Metrics
@@ -490,6 +511,8 @@ model = WhisperForConditionalGeneration.from_pretrained(model_name)
 
 
 ## 15. Override generation arguments
+model.config.apply_spec_augment = apply_spec_augment
+model.config.dropout = dropout
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 if gradient_checkpointing:
@@ -602,7 +625,7 @@ if push_to_hub:
         "dataset": ["common-voice-11", "google-fleurs", "openslr53"],  # a 'pretty' name for the training dataset
         # "dataset": "common-voice-11+openslr53",  # a 'pretty' name for the training dataset
         "language": "bn",
-        "model_name": "Whisper Small - Mohammed Rakib",  # a 'pretty' name for your model
+        "model_name": "Whisper Small - Mohammed Rakib", # a 'pretty' name for your model
         "finetuned_from": "openai/whisper-small",
         "tasks": "automatic-speech-recognition",
         "tags": "whisper-event",

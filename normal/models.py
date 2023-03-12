@@ -28,7 +28,8 @@ task = "transcribe"  # transcribe or translate
 #model_name = 'anuragshas/whisper-small-bn' 
 # model_name = 'anuragshas/whisper-large-v2-bn'
 # model_name = "Rakib/whisper-small-bn"
-model_name = "Rakib/whisper-small-bn-all"
+# model_name = "Rakib/whisper-small-bn-all"
+model_name = "Rakib/whisper-small-bn-all-400"
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
@@ -43,7 +44,7 @@ if device !=0:
 
 print("Loading Tokenizer for ASR Speech-to-Text Model...\n" + "*" * 100)
 # tokenizer = AutoTokenizer.from_pretrained(model_name, language=language, task=task)
-# tokenizer = AutoTokenizer.from_pretrained(model_name)
+# tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
 tokenizer = AutoTokenizer.from_pretrained(model_name,  use_fast=False)
 # tokenizer(['�', '�্র'],add_prefix_space=True, add_special_tokens=False).input_ids
 
@@ -102,8 +103,10 @@ asr = pipeline(
                        'num_beams':2,
                        'max_new_tokens':448,
                        'early_stopping':True,
+                    #    'renormalize_logits':True,
                        # [16867]: �, [16867, 156, 100, 235, 156, 12811]: �্র
-                       'bad_words_ids':[[16867], [16867, 156, 100, 235, 156, 12811]]
+                       'bad_words_ids':[[16867], [16867, 156, 100, 235, 156, 12811]],
+                    #    'supress_tokens': [16867, 156, 100, 235, 156, 12811],
                        }
 )
 

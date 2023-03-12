@@ -7,11 +7,13 @@
 /training/runs
 *checkpoint-*
 /training/best_model
-*.json
 *.pt
 merges.txt
 /cv12/*
 !/cv12/preprocess.ipynb
+*.json
+!/training/preprocessing/vocab_dict.json
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

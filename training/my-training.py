@@ -45,8 +45,8 @@ print(f"\n\n Device to be used: {device} \n\n")
 
 
 ## 2. Setting Up Variables
-model_name = "openai/whisper-tiny"
-# model_name = "openai/whisper-small"
+# model_name = "openai/whisper-tiny"
+model_name = "openai/whisper-small"
 # model_name = "openai/whisper-large-v2"
 
 language = "Bengali"
@@ -57,8 +57,8 @@ print(f"\n\n Loading {model_name} for {language} to {task}...this might take a w
 ## 3. Setting Up Training Args
 output_dir = "./" 
 overwrite_output_dir = True
-# max_steps = 40000 
-max_steps = 5
+max_steps = 3000 
+# max_steps = 5
 per_device_train_batch_size = 4 
 # per_device_train_batch_size = 1 
 per_device_eval_batch_size = 32 
@@ -68,18 +68,18 @@ gradient_accumulation_steps = 128
 dataloader_num_workers = 4
 gradient_checkpointing = False 
 evaluation_strategy ="steps" 
-eval_steps = 5
-# eval_steps = 1000 
+# eval_steps = 5
+eval_steps = 100 
 save_strategy = "steps" 
-# save_steps = 1000 
-save_steps = 5
+save_steps = 100 
+# save_steps = 5
 save_total_limit = 5 
 learning_rate = 1e-5 
 lr_scheduler_type = "cosine" # "constant", "constant_with_warmup", "cosine", "cosine_with_restarts", "linear"(default), "polynomial", "inverse_sqrt"
-# warmup_steps = 15000 #(1 epoch)
-warmup_steps = 1 
-# logging_steps = 25
-logging_steps = 1
+warmup_steps = 888 # (1 epoch)
+# warmup_steps = 1 
+logging_steps = 25
+# logging_steps = 1
 # weight_decay = 0.01
 weight_decay = 0 
 dropout = 0.1  # any value > 0.1 hurts performance. So, use values between 0.0 and 0.1
@@ -93,8 +93,8 @@ tf32 = True
 generation_max_length = 448
 report_to = ["tensorboard"] 
 predict_with_generate = True
-# push_to_hub = True
-push_to_hub = False
+push_to_hub = True
+# push_to_hub = False
 freeze_feature_encoder = False 
 early_stopping_patience = 10
 apply_spec_augment = True
@@ -120,17 +120,17 @@ google_fleurs["test"] = load_dataset("google/fleurs", "bn_in", split="test", cac
 
 
 ## 5. Small Subset for Testing
-common_voice['train']  = common_voice['train'].select(range(50))
-common_voice['test']  = common_voice['test'].select(range(50))
-google_fleurs['train']  = google_fleurs['train'].select(range(50))
-google_fleurs['test']  = google_fleurs['test'].select(range(50))
-openslr['train'] = openslr['train'].select(range(50))
+# common_voice['train']  = common_voice['train'].select(range(50))
+# common_voice['test']  = common_voice['test'].select(range(50))
+# google_fleurs['train']  = google_fleurs['train'].select(range(50))
+# google_fleurs['test']  = google_fleurs['test'].select(range(50))
+# openslr['train'] = openslr['train'].select(range(50))
 
-print("\n\n For testing, the small subsets are:")
-print(common_voice)
-print(google_fleurs)
-print(openslr)
-print("\n")
+# print("\n\n For testing, the small subsets are:")
+# print(common_voice)
+# print(google_fleurs)
+# print(openslr)
+# print("\n")
 
 
 ## Removing bad samples from common_voice based on upvotes and downvotes
@@ -599,8 +599,8 @@ print("\n\n Training COMPLETED...\n\n")
 ## 18. Evaluating & Saving Metrics & Model
 print("\n\n Evaluating Model & Saving Metrics...\n\n")
 
-processor.save_pretrained("best_model")
-trainer.save_model("best_model")
+processor.save_pretrained()
+trainer.save_model()
 
 metrics = train_result.metrics
 trainer.save_metrics("train", metrics)

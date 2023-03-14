@@ -29,7 +29,7 @@ task = "transcribe"  # transcribe or translate
 # model_name = 'anuragshas/whisper-large-v2-bn'
 # model_name = "Rakib/whisper-small-bn"
 # model_name = "Rakib/whisper-small-bn-all"
-model_name = "Rakib/whisper-small-bn-all-400"
+model_name = "Rakib/whisper-small-bn-all-600"
 
 ## lets you know the device count: cuda:0 or cuda:1
 # print(torch.cuda.device_count())
@@ -44,8 +44,8 @@ if device !=0:
 
 print("Loading Tokenizer for ASR Speech-to-Text Model...\n" + "*" * 100)
 # tokenizer = AutoTokenizer.from_pretrained(model_name, language=language, task=task)
-# tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-tokenizer = AutoTokenizer.from_pretrained(model_name,  use_fast=False)
+tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+#tokenizer = AutoTokenizer.from_pretrained(model_name,  use_fast=False)
 # tokenizer(['�', '�্র'],add_prefix_space=True, add_special_tokens=False).input_ids
 
 print("Loading Feature Extractor for ASR Speech-to-Text Model...\n" + "*" * 100)
